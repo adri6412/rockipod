@@ -161,6 +161,15 @@ btnSync.addEventListener('click', async () => {
         return;
     }
 
+    // Confirmation
+    const sampleNames = itemsToSync.slice(0, 3).map(f => f.name).join("\n- ");
+    const moreCount = itemsToSync.length - 3;
+    const moreText = moreCount > 0 ? `\n...and ${moreCount} more.` : "";
+
+    if (!confirm(`Ready to sync ${itemsToSync.length} files?\n\n- ${sampleNames}${moreText}`)) {
+        return;
+    }
+
     showStatus(true, "Syncing...", `Copying ${itemsToSync.length} files...`);
 
     const musicRootDir = path.join(selectedDevicePath, 'Music');
@@ -180,7 +189,7 @@ btnSync.addEventListener('click', async () => {
         const albumDir = path.join(artistDir, sanitize(file.album));
 
         if (copiedCount === 0) {
-            alert(`DEBUG SYNC:\nFile: ${file.name}\nArtist metadata: '${file.artist}'\nTarget Folder: ${artistDir}\n\nIf Artist is 'Toto' here, the file tag is wrong.`);
+            // alert(`DEBUG SYNC:\nFile: ${file.name}\nArtist metadata: '${file.artist}'\nTarget Folder: ${artistDir}\n\nIf Artist is 'Toto' here, the file tag is wrong.`);
         }
 
         try {
@@ -546,7 +555,8 @@ function loadLibrary() {
         try {
             const data = fs.readFileSync(LIBRARY_FILE, 'utf-8');
             pcLibrary = JSON.parse(data);
-            pcLibrary.forEach(f => { if (f.checked === undefined) f.checked = true; });
+            // Reset selection state on load to avoid "invisible selected" issues
+            pcLibrary.forEach(f => { f.checked = false; });
         } catch (e) {
             console.error("Failed to load library", e);
         }
