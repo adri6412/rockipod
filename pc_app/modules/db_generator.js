@@ -12,8 +12,6 @@ class DBEntry {
         this.title = title || path.basename(relPath);
         this.artist = artist || "Unknown Artist";
         this.album = album || "Unknown Album";
-        this.artist = artist || "Unknown Artist";
-        this.album = album || "Unknown Album";
 
         this.path_idx = 0;
         this.title_idx = 0;

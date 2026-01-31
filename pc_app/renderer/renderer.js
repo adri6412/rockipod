@@ -29,6 +29,7 @@ const btnAddFolder = document.getElementById('btn-add-folder');
 const btnSync = document.getElementById('btn-sync');
 const btnRebuild = document.getElementById('btn-rebuild-db');
 const btnRefresh = document.getElementById('btn-refresh');
+const btnClear = document.getElementById('btn-clear');
 
 const fileList = document.getElementById('file-list'); // TBody for tracks
 const listWrapper = document.querySelector('.list-wrapper'); // Wrapper div
@@ -387,6 +388,10 @@ btnAddFolder.addEventListener('click', async () => {
         const uniqueNewFiles = files.filter(f => !existingPaths.has(f.path));
 
         if (uniqueNewFiles.length > 0) {
+            // DEBUG: Show user what we found for the first file
+            const first = uniqueNewFiles[0];
+            alert(`Debug: Scanned ${uniqueNewFiles.length} new files.\nFirst file: ${first.name}\nArtist: ${first.artist}\nAlbum: ${first.album}\n\nIf this says 'Toto' but shouldn't, your ID3 tags might be wrong!`);
+
             const newFilesWithCheck = uniqueNewFiles.map(f => ({ ...f, checked: true }));
             pcLibrary = [...pcLibrary, ...newFilesWithCheck];
             saveLibrary();
@@ -404,6 +409,19 @@ btnAddFolder.addEventListener('click', async () => {
 
 btnRefresh.addEventListener('click', () => {
     renderCurrentLevel();
+});
+
+// Clear Library
+btnClear.addEventListener('click', () => {
+    if (confirm("Are you sure you want to clear your entire library?")) {
+        pcLibrary = [];
+        navigationPath = { mode: null, artist: null, album: null };
+        currentLevel = -1;
+        saveLibrary();
+        renderCurrentLevel();
+        lcdTitle.innerText = "Library Cleared";
+        checkSyncReady();
+    }
 });
 
 // 4. Rebuild DB
