@@ -382,14 +382,23 @@ btnAddFolder.addEventListener('click', async () => {
         showStatus(true, "Scanning...", "Reading library...");
         const files = await ipcRenderer.invoke('scan-library', folder);
 
-        const newFiles = files.map(f => ({ ...f, checked: true }));
-        pcLibrary = [...pcLibrary, ...newFiles];
+        // Deduplicate: Only add files that are not already in pcLibrary
+        const existingPaths = new Set(pcLibrary.map(f => f.path));
+        const uniqueNewFiles = files.filter(f => !existingPaths.has(f.path));
 
-        saveLibrary();
-        renderCurrentLevel();
-        showStatus(false);
-        checkSyncReady();
-        lcdTitle.innerText = `${pcLibrary.length} Songs`;
+        if (uniqueNewFiles.length > 0) {
+            const newFilesWithCheck = uniqueNewFiles.map(f => ({ ...f, checked: true }));
+            pcLibrary = [...pcLibrary, ...newFilesWithCheck];
+            saveLibrary();
+            renderCurrentLevel();
+            checkSyncReady();
+            lcdTitle.innerText = `${pcLibrary.length} Songs`;
+            showStatus(true, "Done", `Added ${uniqueNewFiles.length} new tracks.`);
+            setTimeout(() => showStatus(false), 2000);
+        } else {
+            showStatus(true, "Info", "No new tracks found.");
+            setTimeout(() => showStatus(false), 2000);
+        }
     }
 });
 
