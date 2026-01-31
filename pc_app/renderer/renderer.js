@@ -99,9 +99,7 @@ function setView(view) {
 
     updateBrowser();
     renderList(filterLibrary(activeLib), currentView === 'library');
-}
-// ...
-function updateBrowser() {
+
     let activeLib = currentView === 'library' ? pcLibrary : deviceLibrary;
     // 1. Get Unique Artists
     const artists = new Set();
@@ -134,16 +132,14 @@ function updateAlbumColumn() {
         selectedAlbum = val === "All Albums" ? null : val;
         renderList(filterLibrary(activeLib), currentView === 'library');
     });
-}
-// ...
-// Data
-tr.innerHTML += `
+
+    tr.innerHTML += `
             <td>${file.name}</td>
             <td>${file.artist || 'Unknown'}</td>
             <td>${file.album || 'Unknown'}</td>
             <td>${(file.size / 1024 / 1024).toFixed(1)} MB</td>
         `; fileList.appendChild(tr);
-    });
+});
 }
 
 // Persistence
