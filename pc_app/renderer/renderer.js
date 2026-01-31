@@ -31,6 +31,10 @@ const btnRebuild = document.getElementById('btn-rebuild-db');
 const btnRefresh = document.getElementById('btn-refresh');
 const btnClear = document.getElementById('btn-clear');
 
+const statusOverlay = document.getElementById('status-overlay');
+const statusTitle = document.getElementById('status-title');
+const statusMessage = document.getElementById('status-message');
+
 const fileList = document.getElementById('file-list'); // TBody for tracks
 const listWrapper = document.querySelector('.list-wrapper'); // Wrapper div
 const tableHead = document.querySelector('.file-table thead'); // Table Header
@@ -76,12 +80,6 @@ function renderCurrentLevel() {
     updateHeader();
     updateCheckAllVisibility();
     const viewTitle = document.getElementById('view-title');
-
-    const statusOverlay = document.getElementById('status-overlay');
-    const statusTitle = document.getElementById('status-title');
-    const statusMessage = document.getElementById('status-message');
-    const lcdTitle = document.querySelector('.lcd-title');
-    const lcdSubtitle = document.querySelector('.lcd-subtitle');
 
     // --- Init ---
     loadLibrary();
@@ -294,9 +292,13 @@ function renderCurrentLevel() {
     }
 
     // --- Init ---
-    loadLibrary();
-    // Force initial view render to ensure UI state (sidebar, buttons) matches
-    setView('library');
+    try {
+        loadLibrary();
+        // Force initial view render to ensure UI state (sidebar, buttons) matches
+        setView('library');
+    } catch (e) {
+        alert("CRITICAL ERROR during startup:\n" + e.toString());
+    }
 
     // ... (rest of file)
 
