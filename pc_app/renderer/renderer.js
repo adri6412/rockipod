@@ -439,15 +439,29 @@ btnSync.addEventListener('click', async () => {
 
     showStatus(true, "Syncing...", `Copying ${itemsToSync.length} files...`);
 
-    const targetDir = path.join(selectedDevicePath, 'Music');
-    if (!fs.existsSync(targetDir)) {
-        try { fs.mkdirSync(targetDir); } catch (e) { }
+    const musicRootDir = path.join(selectedDevicePath, 'Music');
+    if (!fs.existsSync(musicRootDir)) {
+        try { fs.mkdirSync(musicRootDir); } catch (e) { }
     }
+
+    // Sanitize helper
+    const sanitize = (name) => {
+        return (name || "Unknown").replace(/[<>:"/\\|?*]/g, '_').trim();
+    };
 
     let copiedCount = 0;
     for (const file of itemsToSync) {
-        const destPath = path.join(targetDir, file.name);
+        // Structure: Music / Artist / Album / Filename
+        const artistDir = path.join(musicRootDir, sanitize(file.artist));
+        const albumDir = path.join(artistDir, sanitize(file.album));
+
         try {
+            // Create directories if needed
+            if (!fs.existsSync(artistDir)) fs.mkdirSync(artistDir);
+            if (!fs.existsSync(albumDir)) fs.mkdirSync(albumDir);
+
+            const destPath = path.join(albumDir, file.name);
+
             statusMessage.innerText = `Copying ${file.name}...`;
             if (!fs.existsSync(destPath)) {
                 await fs.promises.copyFile(file.path, destPath);
