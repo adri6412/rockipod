@@ -46,6 +46,7 @@ const lcdSubtitle = document.querySelector('.lcd-subtitle');
 
 // --- Init ---
 loadLibrary();
+setView('library');
 
 // --- Handlers ---
 
@@ -139,6 +140,7 @@ function renderCurrentLevel() {
 
     fileList.innerHTML = '';
     updateHeader();
+    updateCheckAllVisibility();
 
     if (currentLevel === -1) {
         // LEVEL -1: ROOT MENU
@@ -242,8 +244,24 @@ function renderCurrentLevel() {
     }
 }
 
+// --- Init ---
+loadLibrary();
+// Force initial view render to ensure UI state (sidebar, buttons) matches
+setView('library');
+
+// ... (rest of file)
+
 function renderTracks(tracks) {
     const isDeviceView = currentView === 'device';
+    // Update Select All Checkbox State based on visible tracks
+    if (checkAll && !isDeviceView && tracks.length > 0) {
+        const allChecked = tracks.every(t => t.checked);
+        checkAll.checked = allChecked;
+        // Ensure it's visible since we are rendering tracks
+        checkAll.style.visibility = 'visible';
+    } else if (checkAll) {
+        checkAll.checked = false;
+    }
 
     tracks.forEach(file => {
         const tr = document.createElement('tr');
@@ -258,6 +276,11 @@ function renderTracks(tracks) {
             cb.addEventListener('change', (e) => {
                 file.checked = e.target.checked;
                 checkSyncReady();
+
+                // Update header checkbox immediately without full re-render
+                if (checkAll) {
+                    checkAll.checked = tracks.every(t => t.checked);
+                }
             });
             tdCheck.appendChild(cb);
         }
@@ -278,6 +301,22 @@ function renderTracks(tracks) {
 
         fileList.appendChild(tr);
     });
+}
+
+function updateCheckAllVisibility() {
+    if (!checkAll) return;
+
+    // Show only if in a Track view
+    let shouldShow = false;
+    if (currentLevel === 2) shouldShow = true;
+    else if (currentLevel === 1 && navigationPath.mode === 'album') shouldShow = true;
+    else if (currentLevel === 0 && navigationPath.mode === 'track') shouldShow = true;
+
+    // Also hide if in Device view
+    if (currentView === 'device') shouldShow = false;
+
+    checkAll.style.visibility = shouldShow ? 'visible' : 'hidden';
+    // remove checkAll.checked = false; here because renderTracks handles it now
 }
 
 function updateHeader() {
@@ -467,32 +506,46 @@ const checkAll = document.getElementById('check-all');
 if (checkAll) {
     checkAll.addEventListener('change', (e) => {
         const checked = e.target.checked;
-
-        // Target files based on current view
         let visibleTracks = [];
 
+        // We only support Select All in Track Views
+        // Logic must match renderCurrentLevel's table modes
+
         if (currentLevel === 2) {
-            // Specific Album Tracks
+            // Artist -> Album -> Tracks
             visibleTracks = pcLibrary.filter(f => {
                 return (f.artist || "Unknown") === navigationPath.artist &&
                     (f.album || "Unknown") === navigationPath.album;
             });
         } else if (currentLevel === 1 && navigationPath.mode === 'album') {
-            // Specific Album Tracks (from Album root)
+            // Album -> Tracks
             visibleTracks = pcLibrary.filter(f => (f.album || "Unknown") === navigationPath.album);
         } else if (currentLevel === 0 && navigationPath.mode === 'track') {
             // All Tracks
             visibleTracks = pcLibrary;
         }
 
-        // Update model
-        visibleTracks.forEach(f => f.checked = checked);
-
-        // Update UI (re-render current list to show checks)
-        // We only re-render if we are actually viewing tracks (which we should be if we found visibleTracks)
         if (visibleTracks.length > 0) {
+            visibleTracks.forEach(f => f.checked = checked);
             renderCurrentLevel();
         }
-        checkSyncReady();
+        checkSyncReady(); // Always check button state
     });
 }
+
+function updateCheckAllVisibility() {
+    if (!checkAll) return;
+
+    // Show only if in a Track view (same condition as above basically)
+    let shouldShow = false;
+    if (currentLevel === 2) shouldShow = true;
+    else if (currentLevel === 1 && navigationPath.mode === 'album') shouldShow = true;
+    else if (currentLevel === 0 && navigationPath.mode === 'track') shouldShow = true;
+
+    // Also hide if in Device view (since no checkboxes there)
+    if (currentView === 'device') shouldShow = false;
+
+    // Use visibility to keep layout alignment if needed, or display if hidden by default
+    checkAll.style.visibility = shouldShow ? 'visible' : 'hidden';
+}
+
