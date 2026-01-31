@@ -43,6 +43,7 @@ const searchInput = document.getElementById('search-input');
 
 // Navigation Controls
 const btnBack = document.getElementById('btn-back');
+const viewTitle = document.getElementById('view-title');
 // ...
 
 searchInput.addEventListener('input', (e) => {
@@ -79,7 +80,6 @@ function renderCurrentLevel() {
     fileList.innerHTML = '';
     updateHeader();
     updateCheckAllVisibility();
-    const viewTitle = document.getElementById('view-title');
 
     // --- Init ---
     loadLibrary();
