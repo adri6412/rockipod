@@ -12,8 +12,12 @@ let deviceLibrary = [];
 let currentView = 'library'; // 'library' or 'device'
 
 // Drill-Down State
-let currentLevel = 0; // 0=Artist List, 1=Album List, 2=Track List
+// -1 = Root Menu (Artists, Albums, Tracks)
+// 0 = Artist List (or Album List if coming from Albums path)
+// ...
+let currentLevel = -1;
 let navigationPath = {
+    mode: null, // 'artist', 'album', 'track'
     artist: null,
     album: null
 };
@@ -59,7 +63,7 @@ navDevice.addEventListener('click', async () => {
             scanDevice();
         }
     } else {
-        scanDevice(); // Just refresh view
+        scanDevice();
     }
     setView('device');
 });
@@ -67,15 +71,14 @@ navDevice.addEventListener('click', async () => {
 function setView(view) {
     currentView = view;
 
-    // Reset Navigation on view switch
-    currentLevel = 0;
-    navigationPath = { artist: null, album: null };
+    // Reset Navigation to Root on view switch
+    currentLevel = -1;
+    navigationPath = { mode: null, artist: null, album: null };
 
     if (view === 'library') {
         navLibrary.classList.add('active');
         navDevice.classList.remove('active');
 
-        // Show Controls
         btnAddFolder.style.display = 'inline-block';
         btnSync.style.display = 'inline-block';
         btnRefresh.style.display = 'inline-block';
@@ -85,7 +88,6 @@ function setView(view) {
         navDevice.classList.add('active');
         navLibrary.classList.remove('active');
 
-        // Hide/Change Controls
         btnAddFolder.style.display = 'none';
         btnSync.style.display = 'none';
         btnRefresh.style.display = 'none';
@@ -100,10 +102,33 @@ function setView(view) {
 // 2. Navigation Logic (Drill Down)
 
 btnBack.addEventListener('click', () => {
-    if (currentLevel > 0) {
-        currentLevel--;
-        if (currentLevel === 0) navigationPath.artist = null;
-        if (currentLevel === 1) navigationPath.album = null; // Going back to artists, or back to albums
+    if (currentLevel > -1) {
+        if (currentLevel === 0) {
+            // Back to Root
+            currentLevel = -1;
+            navigationPath = { mode: null, artist: null, album: null };
+        } else if (currentLevel === 1) {
+            currentLevel--;
+            if (navigationPath.mode === 'artist') navigationPath.artist = null;
+            // If mode was album, we went Root -> AlbumList -> Tracks. So level 1 was AlbumList. 
+            // Wait, logic:
+            // Mode Artist: Root(-1) -> Artists(0) -> Albums(1) -> Tracks(2)
+            // Mode Album: Root(-1) -> Albums(0) -> Tracks(1)
+            // Mode Track: Root(-1) -> Tracks(0)
+
+            // Adjust logic based on mode
+            if (navigationPath.mode === 'album') {
+                // Back from Tracks(1) to Albums(0)
+            } else if (navigationPath.mode === 'artist') {
+                // Back from Albums(1) to Artists(0)
+                navigationPath.album = null;
+            }
+        } else if (currentLevel === 2) {
+            // Only possible in Artist mode: Tracks(2) -> Albums(1)
+            currentLevel--;
+            navigationPath.album = null;
+        }
+
         renderCurrentLevel();
     }
 });
@@ -112,123 +137,171 @@ function renderCurrentLevel() {
     let activeLib = currentView === 'library' ? pcLibrary : deviceLibrary;
     if (!activeLib) activeLib = [];
 
-    // Reset Table/List Content
     fileList.innerHTML = '';
-
-    // Update Header
     updateHeader();
 
-    if (currentLevel === 0) {
-        // LEVEL 0: ARTISTS
-        // We use the same table structure but just 'Name' column basically
-        // Or we can dynamically hide columns. Let's hide unrelated columns for simplicity.
-        setTableMode('list'); // Mode: simple list
-
-        // Get Unique Artists
-        const artists = new Set();
-        activeLib.forEach(f => artists.add(f.artist || "Unknown"));
-        const sortedArtists = Array.from(artists).sort();
-
-        sortedArtists.forEach(artist => {
-            const row = createListRow('👤 ' + artist, () => {
-                navigationPath.artist = artist;
-                currentLevel = 1;
-                renderCurrentLevel();
-            });
-            fileList.appendChild(row);
-        });
-
-    } else if (currentLevel === 1) {
-        // LEVEL 1: ALBUMS (Filtered by Artist)
+    if (currentLevel === -1) {
+        // LEVEL -1: ROOT MENU
         setTableMode('list');
 
-        const albums = new Set();
-        activeLib.forEach(f => {
-            if ((f.artist || "Unknown") === navigationPath.artist) {
-                albums.add(f.album || "Unknown");
-            }
-        });
-        const sortedAlbums = Array.from(albums).sort();
+        const menuItems = [
+            { name: "Artists", icon: "👤", mode: 'artist' },
+            { name: "Albums", icon: "💿", mode: 'album' },
+            { name: "Tracks", icon: "🎵", mode: 'track' }
+        ];
 
-        sortedAlbums.forEach(album => {
-            const row = createListRow('💿 ' + album, () => {
-                navigationPath.album = album;
-                currentLevel = 2;
+        menuItems.forEach(item => {
+            const row = createListRow(item.icon + ' ' + item.name, () => {
+                navigationPath.mode = item.mode;
+                currentLevel = 0;
                 renderCurrentLevel();
             });
             fileList.appendChild(row);
         });
 
-    } else if (currentLevel === 2) {
-        // LEVEL 2: TRACKS
-        setTableMode('tracks');
+    } else if (currentLevel === 0) {
+        // LEVEL 0
+        setTableMode('list');
 
+        if (navigationPath.mode === 'artist') {
+            // Show Artists
+            const artists = new Set();
+            activeLib.forEach(f => artists.add(f.artist || "Unknown"));
+            const sortedArtists = Array.from(artists).sort();
+
+            sortedArtists.forEach(artist => {
+                const row = createListRow('👤 ' + artist, () => {
+                    navigationPath.artist = artist;
+                    currentLevel = 1;
+                    renderCurrentLevel();
+                });
+                fileList.appendChild(row);
+            });
+
+        } else if (navigationPath.mode === 'album') {
+            // Show Albums (All)
+            const albums = new Set();
+            activeLib.forEach(f => albums.add(f.album || "Unknown"));
+            const sortedAlbums = Array.from(albums).sort();
+
+            sortedAlbums.forEach(album => {
+                const row = createListRow('💿 ' + album, () => {
+                    navigationPath.album = album;
+                    currentLevel = 1;
+                    renderCurrentLevel();
+                });
+                fileList.appendChild(row);
+            });
+
+        } else if (navigationPath.mode === 'track') {
+            // Show All Tracks
+            setTableMode('tracks');
+            renderTracks(activeLib);
+        }
+
+    } else if (currentLevel === 1) {
+        // LEVEL 1
+
+        if (navigationPath.mode === 'artist') {
+            // Selected Artist -> Show Albums
+            setTableMode('list');
+            const albums = new Set();
+            activeLib.forEach(f => {
+                if ((f.artist || "Unknown") === navigationPath.artist) {
+                    albums.add(f.album || "Unknown");
+                }
+            });
+            const sortedAlbums = Array.from(albums).sort();
+
+            sortedAlbums.forEach(album => {
+                const row = createListRow('💿 ' + album, () => {
+                    navigationPath.album = album;
+                    currentLevel = 2;
+                    renderCurrentLevel();
+                });
+                fileList.appendChild(row);
+            });
+
+        } else if (navigationPath.mode === 'album') {
+            // Selected Album -> Show Tracks
+            setTableMode('tracks');
+            const tracks = activeLib.filter(f => (f.album || "Unknown") === navigationPath.album);
+            renderTracks(tracks);
+        }
+
+    } else if (currentLevel === 2) {
+        // LEVEL 2 (Only for Artist Mode)
+        // Selected Artist -> Selected Album -> Show Tracks
+        setTableMode('tracks');
         const tracks = activeLib.filter(f => {
             if ((f.artist || "Unknown") !== navigationPath.artist) return false;
             if ((f.album || "Unknown") !== navigationPath.album) return false;
             return true;
         });
-
-        // Determine syncable state
-        const isDeviceView = currentView === 'device';
-
-        tracks.forEach(file => {
-            const tr = document.createElement('tr');
-
-            // Checkbox
-            const tdCheck = document.createElement('td');
-            tdCheck.style.textAlign = 'center';
-            if (!isDeviceView) {
-                const cb = document.createElement('input');
-                cb.type = 'checkbox';
-                cb.checked = file.checked !== false;
-                cb.addEventListener('change', (e) => {
-                    file.checked = e.target.checked;
-                    checkSyncReady();
-                });
-                tdCheck.appendChild(cb);
-            }
-            tr.appendChild(tdCheck);
-
-            // Icon
-            const tdIcon = document.createElement('td');
-            tdIcon.style.textAlign = 'center';
-            tdIcon.innerHTML = '🎵';
-            tr.appendChild(tdIcon);
-
-            tr.innerHTML += `
-                 <td>${file.name}</td>
-                 <td>${file.artist || 'Unknown'}</td>
-                 <td>${file.album || 'Unknown'}</td>
-                 <td>${(file.size / 1024 / 1024).toFixed(1)} MB</td>
-             `;
-
-            fileList.appendChild(tr);
-        });
+        renderTracks(tracks);
     }
 }
 
+function renderTracks(tracks) {
+    const isDeviceView = currentView === 'device';
+
+    tracks.forEach(file => {
+        const tr = document.createElement('tr');
+
+        // Checkbox
+        const tdCheck = document.createElement('td');
+        tdCheck.style.textAlign = 'center';
+        if (!isDeviceView) {
+            const cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.checked = file.checked !== false;
+            cb.addEventListener('change', (e) => {
+                file.checked = e.target.checked;
+                checkSyncReady();
+            });
+            tdCheck.appendChild(cb);
+        }
+        tr.appendChild(tdCheck);
+
+        // Icon
+        const tdIcon = document.createElement('td');
+        tdIcon.style.textAlign = 'center';
+        tdIcon.innerHTML = '🎵';
+        tr.appendChild(tdIcon);
+
+        tr.innerHTML += `
+             <td>${file.name}</td>
+             <td>${file.artist || 'Unknown'}</td>
+             <td>${file.album || 'Unknown'}</td>
+             <td>${(file.size / 1024 / 1024).toFixed(1)} MB</td>
+         `;
+
+        fileList.appendChild(tr);
+    });
+}
+
 function updateHeader() {
-    if (currentLevel === 0) {
-        viewTitle.innerText = currentView === 'library' ? "Library (Artists)" : "Device (Artists)";
-        btnBack.classList.add('hidden');
+    const baseTitle = currentView === 'library' ? "Library" : "Device";
+    btnBack.classList.remove('hidden');
+
+    if (currentLevel === -1) {
+        viewTitle.innerText = baseTitle;
+        btnBack.classList.add('hidden'); // No back at root
+    } else if (currentLevel === 0) {
+        if (navigationPath.mode === 'artist') viewTitle.innerText = "Artists";
+        else if (navigationPath.mode === 'album') viewTitle.innerText = "Albums";
+        else viewTitle.innerText = "All Tracks";
     } else if (currentLevel === 1) {
-        viewTitle.innerText = navigationPath.artist;
-        btnBack.classList.remove('hidden');
+        if (navigationPath.mode === 'artist') viewTitle.innerText = navigationPath.artist; // Artist Name
+        else viewTitle.innerText = navigationPath.album; // Album Name
     } else {
         viewTitle.innerText = `${navigationPath.artist} - ${navigationPath.album}`;
-        btnBack.classList.remove('hidden');
     }
 }
 
 function setTableMode(mode) {
-    // Show/Hide headers based on mode
     const textHeaders = tableHead.querySelectorAll('th');
-    // Headers: [Check, Icon, Name, Artist, Album, Size]
-    // Indices: 0, 1, 2, 3, 4, 5
-
     if (mode === 'list') {
-        // Only show Check(empty) and Name
         textHeaders[3].style.display = 'none'; // Artist
         textHeaders[4].style.display = 'none'; // Album
         textHeaders[5].style.display = 'none'; // Size
@@ -244,23 +317,19 @@ function createListRow(text, onClick) {
     tr.style.cursor = 'pointer';
     tr.addEventListener('click', onClick);
 
-    // Empty Checkbox
     const td1 = document.createElement('td');
     tr.appendChild(td1);
 
-    // Icon (Arrow or Folder)
     const td2 = document.createElement('td');
     td2.style.textAlign = 'center';
-    td2.innerHTML = '📂'; // Use folder for container levels
+    td2.innerHTML = '👉';
     tr.appendChild(td2);
 
-    // Name
     const td3 = document.createElement('td');
     td3.innerText = text;
     td3.style.fontWeight = '500';
     tr.appendChild(td3);
 
-    // Hover effect class handled by CSS (tr:hover)
     return tr;
 }
 
@@ -312,9 +381,6 @@ async function performDbGen() {
 
 // 5. Sync (Selective)
 btnSync.addEventListener('click', async () => {
-    // Only items that are checked.
-    // NOTE: In Drill Down mode, user might not see checked files if they are not in the current view level.
-    // But checked state persists in `pcLibrary`.
     const itemsToSync = pcLibrary.filter(f => f.checked);
 
     if (!selectedDevicePath || itemsToSync.length === 0) {
@@ -324,7 +390,6 @@ btnSync.addEventListener('click', async () => {
 
     showStatus(true, "Syncing...", `Copying ${itemsToSync.length} files...`);
 
-    // Create 'Music' folder
     const targetDir = path.join(selectedDevicePath, 'Music');
     if (!fs.existsSync(targetDir)) {
         try { fs.mkdirSync(targetDir); } catch (e) { }
@@ -344,7 +409,6 @@ btnSync.addEventListener('click', async () => {
         }
     }
 
-    // Auto Rebuild DB after Sync
     await performDbGen();
 });
 
