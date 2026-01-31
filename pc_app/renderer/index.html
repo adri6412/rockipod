@@ -57,28 +57,15 @@
             <!-- Main Listing -->
             <main class="content-area">
                 <div class="content-header">
-                    <h1 id="view-title">Library</h1>
+                    <div class="nav-controls">
+                        <button id="btn-back" class="action-btn hidden">⬅ Back</button>
+                        <h1 id="view-title">Library</h1>
+                    </div>
                     <div class="header-actions">
                         <button id="btn-refresh" class="action-btn" title="Refresh Library">🔄</button>
                         <button id="btn-add-folder" class="action-btn">Add Folder...</button>
                         <button id="btn-rebuild-db" class="action-btn" disabled>Rebuild DB</button>
                         <button id="btn-sync" class="action-btn primary" disabled>Sync...</button>
-                    </div>
-                </div>
-
-                <!-- Column Browser (Artists / Albums) -->
-                <div id="browser-columns" class="browser-columns hidden">
-                    <div class="column-box">
-                        <div class="column-header">Artists</div>
-                        <ul id="list-artists" class="browser-list">
-                            <!-- Populated by JS -->
-                        </ul>
-                    </div>
-                    <div class="column-box">
-                        <div class="column-header">Albums</div>
-                        <ul id="list-albums" class="browser-list">
-                            <!-- Populated by JS -->
-                        </ul>
                     </div>
                 </div>
 

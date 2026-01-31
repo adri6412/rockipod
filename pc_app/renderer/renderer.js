@@ -7,13 +7,16 @@ const LIBRARY_FILE = path.join(__dirname, 'library.json');
 
 // State
 let selectedDevicePath = null;
-let pcLibrary = []; // Objects: { path, name, size, artist, album, checked }
+let pcLibrary = [];
 let deviceLibrary = [];
 let currentView = 'library'; // 'library' or 'device'
 
-// Filter State
-let selectedArtist = null; // null = All
-let selectedAlbum = null;  // null = All
+// Drill-Down State
+let currentLevel = 0; // 0=Artist List, 1=Album List, 2=Track List
+let navigationPath = {
+    artist: null,
+    album: null
+};
 
 // Elements
 const navLibrary = document.getElementById('nav-library');
@@ -23,18 +26,19 @@ const btnSync = document.getElementById('btn-sync');
 const btnRebuild = document.getElementById('btn-rebuild-db');
 const btnRefresh = document.getElementById('btn-refresh');
 
-const fileList = document.getElementById('file-list');
+const fileList = document.getElementById('file-list'); // TBody for tracks
+const listWrapper = document.querySelector('.list-wrapper'); // Wrapper div
+const tableHead = document.querySelector('.file-table thead'); // Table Header
+
+// Navigation Controls
+const btnBack = document.getElementById('btn-back');
+const viewTitle = document.getElementById('view-title');
+
 const statusOverlay = document.getElementById('status-overlay');
 const statusTitle = document.getElementById('status-title');
 const statusMessage = document.getElementById('status-message');
 const lcdTitle = document.querySelector('.lcd-title');
 const lcdSubtitle = document.querySelector('.lcd-subtitle');
-
-const browserColumns = document.getElementById('browser-columns');
-const listArtists = document.getElementById('list-artists');
-const listAlbums = document.getElementById('list-albums');
-const checkAll = document.getElementById('check-all');
-
 
 // --- Init ---
 loadLibrary();
@@ -55,20 +59,21 @@ navDevice.addEventListener('click', async () => {
             scanDevice();
         }
     } else {
-        scanDevice();
+        scanDevice(); // Just refresh view
     }
     setView('device');
 });
 
 function setView(view) {
     currentView = view;
-    // Determine active library for filtering
-    let activeLib = currentView === 'library' ? pcLibrary : deviceLibrary;
+
+    // Reset Navigation on view switch
+    currentLevel = 0;
+    navigationPath = { artist: null, album: null };
 
     if (view === 'library') {
         navLibrary.classList.add('active');
         navDevice.classList.remove('active');
-        document.getElementById('view-title').innerText = "Library"; // Fixed title string
 
         // Show Controls
         btnAddFolder.style.display = 'inline-block';
@@ -79,43 +84,200 @@ function setView(view) {
     } else {
         navDevice.classList.add('active');
         navLibrary.classList.remove('active');
-        document.getElementById('view-title').innerText = "Device Music";
 
         // Hide/Change Controls
         btnAddFolder.style.display = 'none';
         btnSync.style.display = 'none';
         btnRefresh.style.display = 'none';
 
-        lcdTitle.innerText = `${deviceLibrary.length} Songs on Device`;
+        lcdTitle.innerText = (deviceLibrary ? deviceLibrary.length : 0) + " Songs on Device";
     }
 
-    // Checkbox Validations
     checkSyncReady();
-
-    // Always show columns and update them based on current view's data
-    browserColumns.classList.remove('hidden');
-    selectedArtist = null; // Reset filters on view switch
-    selectedAlbum = null;
-
-    updateBrowser();
-    renderList(filterLibrary(activeLib), currentView === 'library');
+    renderCurrentLevel();
 }
 
-// 2. Add Folder & Scan
+// 2. Navigation Logic (Drill Down)
+
+btnBack.addEventListener('click', () => {
+    if (currentLevel > 0) {
+        currentLevel--;
+        if (currentLevel === 0) navigationPath.artist = null;
+        if (currentLevel === 1) navigationPath.album = null; // Going back to artists, or back to albums
+        renderCurrentLevel();
+    }
+});
+
+function renderCurrentLevel() {
+    let activeLib = currentView === 'library' ? pcLibrary : deviceLibrary;
+    if (!activeLib) activeLib = [];
+
+    // Reset Table/List Content
+    fileList.innerHTML = '';
+
+    // Update Header
+    updateHeader();
+
+    if (currentLevel === 0) {
+        // LEVEL 0: ARTISTS
+        // We use the same table structure but just 'Name' column basically
+        // Or we can dynamically hide columns. Let's hide unrelated columns for simplicity.
+        setTableMode('list'); // Mode: simple list
+
+        // Get Unique Artists
+        const artists = new Set();
+        activeLib.forEach(f => artists.add(f.artist || "Unknown"));
+        const sortedArtists = Array.from(artists).sort();
+
+        sortedArtists.forEach(artist => {
+            const row = createListRow('👤 ' + artist, () => {
+                navigationPath.artist = artist;
+                currentLevel = 1;
+                renderCurrentLevel();
+            });
+            fileList.appendChild(row);
+        });
+
+    } else if (currentLevel === 1) {
+        // LEVEL 1: ALBUMS (Filtered by Artist)
+        setTableMode('list');
+
+        const albums = new Set();
+        activeLib.forEach(f => {
+            if ((f.artist || "Unknown") === navigationPath.artist) {
+                albums.add(f.album || "Unknown");
+            }
+        });
+        const sortedAlbums = Array.from(albums).sort();
+
+        sortedAlbums.forEach(album => {
+            const row = createListRow('💿 ' + album, () => {
+                navigationPath.album = album;
+                currentLevel = 2;
+                renderCurrentLevel();
+            });
+            fileList.appendChild(row);
+        });
+
+    } else if (currentLevel === 2) {
+        // LEVEL 2: TRACKS
+        setTableMode('tracks');
+
+        const tracks = activeLib.filter(f => {
+            if ((f.artist || "Unknown") !== navigationPath.artist) return false;
+            if ((f.album || "Unknown") !== navigationPath.album) return false;
+            return true;
+        });
+
+        // Determine syncable state
+        const isDeviceView = currentView === 'device';
+
+        tracks.forEach(file => {
+            const tr = document.createElement('tr');
+
+            // Checkbox
+            const tdCheck = document.createElement('td');
+            tdCheck.style.textAlign = 'center';
+            if (!isDeviceView) {
+                const cb = document.createElement('input');
+                cb.type = 'checkbox';
+                cb.checked = file.checked !== false;
+                cb.addEventListener('change', (e) => {
+                    file.checked = e.target.checked;
+                    checkSyncReady();
+                });
+                tdCheck.appendChild(cb);
+            }
+            tr.appendChild(tdCheck);
+
+            // Icon
+            const tdIcon = document.createElement('td');
+            tdIcon.style.textAlign = 'center';
+            tdIcon.innerHTML = '🎵';
+            tr.appendChild(tdIcon);
+
+            tr.innerHTML += `
+                 <td>${file.name}</td>
+                 <td>${file.artist || 'Unknown'}</td>
+                 <td>${file.album || 'Unknown'}</td>
+                 <td>${(file.size / 1024 / 1024).toFixed(1)} MB</td>
+             `;
+
+            fileList.appendChild(tr);
+        });
+    }
+}
+
+function updateHeader() {
+    if (currentLevel === 0) {
+        viewTitle.innerText = currentView === 'library' ? "Library (Artists)" : "Device (Artists)";
+        btnBack.classList.add('hidden');
+    } else if (currentLevel === 1) {
+        viewTitle.innerText = navigationPath.artist;
+        btnBack.classList.remove('hidden');
+    } else {
+        viewTitle.innerText = `${navigationPath.artist} - ${navigationPath.album}`;
+        btnBack.classList.remove('hidden');
+    }
+}
+
+function setTableMode(mode) {
+    // Show/Hide headers based on mode
+    const textHeaders = tableHead.querySelectorAll('th');
+    // Headers: [Check, Icon, Name, Artist, Album, Size]
+    // Indices: 0, 1, 2, 3, 4, 5
+
+    if (mode === 'list') {
+        // Only show Check(empty) and Name
+        textHeaders[3].style.display = 'none'; // Artist
+        textHeaders[4].style.display = 'none'; // Album
+        textHeaders[5].style.display = 'none'; // Size
+    } else {
+        textHeaders[3].style.display = '';
+        textHeaders[4].style.display = '';
+        textHeaders[5].style.display = '';
+    }
+}
+
+function createListRow(text, onClick) {
+    const tr = document.createElement('tr');
+    tr.style.cursor = 'pointer';
+    tr.addEventListener('click', onClick);
+
+    // Empty Checkbox
+    const td1 = document.createElement('td');
+    tr.appendChild(td1);
+
+    // Icon (Arrow or Folder)
+    const td2 = document.createElement('td');
+    td2.style.textAlign = 'center';
+    td2.innerHTML = '📂'; // Use folder for container levels
+    tr.appendChild(td2);
+
+    // Name
+    const td3 = document.createElement('td');
+    td3.innerText = text;
+    td3.style.fontWeight = '500';
+    tr.appendChild(td3);
+
+    // Hover effect class handled by CSS (tr:hover)
+    return tr;
+}
+
+
+
+// 3. Add Folder & Scan
 btnAddFolder.addEventListener('click', async () => {
     const folder = await ipcRenderer.invoke('select-folder');
     if (folder) {
         showStatus(true, "Scanning...", "Reading library...");
         const files = await ipcRenderer.invoke('scan-library', folder);
 
-        // Merge into library (check for duplicates?)
-        // For simplicity, just append new files
         const newFiles = files.map(f => ({ ...f, checked: true }));
         pcLibrary = [...pcLibrary, ...newFiles];
 
         saveLibrary();
-        updateBrowser();
-        renderList(filterLibrary(pcLibrary));
+        renderCurrentLevel();
         showStatus(false);
         checkSyncReady();
         lcdTitle.innerText = `${pcLibrary.length} Songs`;
@@ -123,77 +285,8 @@ btnAddFolder.addEventListener('click', async () => {
 });
 
 btnRefresh.addEventListener('click', () => {
-    // Re-render and clear filters
-    selectedArtist = null;
-    selectedAlbum = null;
-    updateBrowser();
-    renderList(filterLibrary(pcLibrary));
+    renderCurrentLevel();
 });
-
-// 3. Browser Logic (Artists / Albums)
-function updateBrowser() {
-    let activeLib = currentView === 'library' ? pcLibrary : deviceLibrary;
-    // 1. Get Unique Artists
-    const artists = new Set();
-    activeLib.forEach(f => artists.add(f.artist || "Unknown"));
-    const sortedArtists = Array.from(artists).sort();
-
-    // Render Artists
-    renderColumn(listArtists, ["All Artists", ...sortedArtists], selectedArtist, (val) => {
-        selectedArtist = val === "All Artists" ? null : val;
-        selectedAlbum = null; // Reset album when artist changes
-        updateAlbumColumn();
-        renderList(filterLibrary(activeLib), currentView === 'library');
-    });
-
-    updateAlbumColumn();
-}
-
-function updateAlbumColumn() {
-    let activeLib = currentView === 'library' ? pcLibrary : deviceLibrary;
-    const albums = new Set();
-    // Filter albums by selected artist
-    activeLib.forEach(f => {
-        if (!selectedArtist || (f.artist || "Unknown") === selectedArtist) {
-            albums.add(f.album || "Unknown");
-        }
-    });
-    const sortedAlbums = Array.from(albums).sort();
-
-    renderColumn(listAlbums, ["All Albums", ...sortedAlbums], selectedAlbum, (val) => {
-        selectedAlbum = val === "All Albums" ? null : val;
-        renderList(filterLibrary(activeLib), currentView === 'library');
-    });
-}
-
-function renderColumn(element, items, selectedValue, onClick) {
-    element.innerHTML = '';
-    items.forEach(item => {
-        const li = document.createElement('li');
-        li.className = 'browser-item';
-        if (item === (selectedValue || "All Artists") || item === (selectedValue || "All Albums")) {
-            li.classList.add('selected');
-        }
-        li.innerText = item;
-        li.addEventListener('click', () => {
-            onClick(item);
-            // Re-render columns to update selected state
-            // Optimization: Just update status classes? For now full re-render is fine.
-            if (element.id === 'list-artists') updateBrowser(); // Full update
-            else updateAlbumColumn(); // Just albums
-        });
-        element.appendChild(li);
-    });
-}
-
-function filterLibrary(lib) {
-    return lib.filter(f => {
-        if (selectedArtist && (f.artist || "Unknown") !== selectedArtist) return false;
-        if (selectedAlbum && (f.album || "Unknown") !== selectedAlbum) return false;
-        return true;
-    });
-}
-
 
 // 4. Rebuild DB
 btnRebuild.addEventListener('click', async () => {
@@ -219,7 +312,9 @@ async function performDbGen() {
 
 // 5. Sync (Selective)
 btnSync.addEventListener('click', async () => {
-    // Sync ONLY CHECKED items from PC Library
+    // Only items that are checked.
+    // NOTE: In Drill Down mode, user might not see checked files if they are not in the current view level.
+    // But checked state persists in `pcLibrary`.
     const itemsToSync = pcLibrary.filter(f => f.checked);
 
     if (!selectedDevicePath || itemsToSync.length === 0) {
@@ -240,7 +335,7 @@ btnSync.addEventListener('click', async () => {
         const destPath = path.join(targetDir, file.name);
         try {
             statusMessage.innerText = `Copying ${file.name}...`;
-            if (!fs.existsSync(destPath)) { // Skip if exists? Or overwrite? Let's skip for speed if same size
+            if (!fs.existsSync(destPath)) {
                 await fs.promises.copyFile(file.path, destPath);
             }
             copiedCount++;
@@ -253,69 +348,23 @@ btnSync.addEventListener('click', async () => {
     await performDbGen();
 });
 
-// 6. Checkbox Logic
-checkAll.addEventListener('change', (e) => {
-    const checked = e.target.checked;
-    // Update currently filtered view checkboxes
-    const visibleFiles = filterLibrary(pcLibrary);
-    visibleFiles.forEach(f => f.checked = checked);
-    renderList(visibleFiles);
-    checkSyncReady();
-});
-
-
 // Helpers
 async function scanDevice() {
     showStatus(true, "Reading Device...", "Scanning files...");
-    const files = await ipcRenderer.invoke('scan-library', selectedDevicePath);
-    deviceLibrary = files;
-    renderList(deviceLibrary, false);
+    try {
+        const files = await ipcRenderer.invoke('scan-library', selectedDevicePath);
+        deviceLibrary = files;
+    } catch (e) { deviceLibrary = []; }
+
+    if (currentView === 'device') renderCurrentLevel();
     showStatus(false);
     lcdTitle.innerText = `${deviceLibrary.length} Songs on Device`;
 }
 
 function checkSyncReady() {
-    // Sync enabled if device selected AND at least one file checked
     const hasChecked = pcLibrary.some(f => f.checked);
     btnSync.disabled = !(selectedDevicePath && hasChecked);
     btnRebuild.disabled = !selectedDevicePath;
-}
-
-function renderList(files, selectable = true) {
-    fileList.innerHTML = '';
-    files.forEach(file => {
-        const tr = document.createElement('tr');
-
-        // Checkbox Cell
-        const tdCheck = document.createElement('td');
-        tdCheck.style.textAlign = 'center';
-        if (selectable) {
-            const cb = document.createElement('input');
-            cb.type = 'checkbox';
-            cb.checked = file.checked !== false; // Default true
-            cb.addEventListener('change', (e) => {
-                file.checked = e.target.checked;
-                checkSyncReady();
-            });
-            tdCheck.appendChild(cb);
-        }
-        tr.appendChild(tdCheck);
-
-        // Icon
-        const tdIcon = document.createElement('td');
-        tdIcon.style.textAlign = 'center';
-        tdIcon.innerHTML = '🎵';
-        tr.appendChild(tdIcon);
-
-        // Data
-        tr.innerHTML += `
-            <td>${file.name}</td>
-            <td>${file.artist || 'Unknown'}</td>
-            <td>${file.album || 'Unknown'}</td>
-            <td>${(file.size / 1024 / 1024).toFixed(1)} MB</td>
-        `;
-        fileList.appendChild(tr);
-    });
 }
 
 // Persistence
@@ -324,9 +373,8 @@ function loadLibrary() {
         try {
             const data = fs.readFileSync(LIBRARY_FILE, 'utf-8');
             pcLibrary = JSON.parse(data);
-            pcLibrary.forEach(f => { if (f.checked === undefined) f.checked = true; }); // Ensure checked state
-            updateBrowser();
-            renderList(pcLibrary);
+            pcLibrary.forEach(f => { if (f.checked === undefined) f.checked = true; });
+            renderCurrentLevel();
             lcdTitle.innerText = `${pcLibrary.length} Songs`;
         } catch (e) {
             console.error("Failed to load library", e);
@@ -341,7 +389,6 @@ function saveLibrary() {
         console.error("Failed to save library", e);
     }
 }
-
 
 function showStatus(show, title, msg) {
     if (show) {
