@@ -207,6 +207,7 @@ if (checkAll) {
         const checked = e.target.checked;
         let visibleTracks = [];
 
+        // Base set based on navigation
         if (currentLevel === 2) {
             visibleTracks = pcLibrary.filter(f => {
                 return (f.artist || "Unknown") === navigationPath.artist &&
@@ -216,6 +217,16 @@ if (checkAll) {
             visibleTracks = pcLibrary.filter(f => (f.album || "Unknown") === navigationPath.album);
         } else if (currentLevel === 0 && navigationPath.mode === 'track') {
             visibleTracks = pcLibrary;
+        }
+
+        // Apply Search Filter if active
+        if (searchInput && searchInput.value.length > 0) {
+            const query = searchInput.value.toLowerCase();
+            visibleTracks = visibleTracks.filter(f =>
+                (f.title || f.name).toLowerCase().includes(query) ||
+                (f.artist || "").toLowerCase().includes(query) ||
+                (f.album || "").toLowerCase().includes(query)
+            );
         }
 
         if (visibleTracks.length > 0) {
