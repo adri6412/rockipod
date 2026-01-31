@@ -1,4 +1,3 @@
-```javascript
 const { ipcRenderer } = require('electron');
 const path = require('path');
 const fs = require('fs');
@@ -9,7 +8,7 @@ const LIBRARY_FILE = path.join(__dirname, 'library.json');
 // State
 let selectedDevicePath = null;
 let pcLibrary = []; // Objects: { path, name, size, artist, album, checked }
-let deviceLibrary = []; 
+let deviceLibrary = [];
 let currentView = 'library'; // 'library' or 'device'
 
 // Filter State
@@ -67,27 +66,27 @@ function setView(view) {
         navLibrary.classList.add('active');
         navDevice.classList.remove('active');
         document.getElementById('view-title').innerText = "Library";
-        
+
         // Show Controls
         btnAddFolder.style.display = 'inline-block';
         btnSync.style.display = 'inline-block';
         btnRefresh.style.display = 'inline-block';
         browserColumns.classList.remove('hidden'); // Show Columns
-        
+
         updateBrowser();
         renderList(filterLibrary(pcLibrary));
-        lcdTitle.innerText = `${ pcLibrary.length } Songs`;
+        lcdTitle.innerText = `${pcLibrary.length} Songs`;
     } else {
         navDevice.classList.add('active');
         navLibrary.classList.remove('active');
         document.getElementById('view-title').innerText = "Device Music";
-        
+
         // Hide/Change Controls
         btnAddFolder.style.display = 'none';
         btnSync.style.display = 'none';
         btnRefresh.style.display = 'none';
         browserColumns.classList.add('hidden'); // Hide Columns for Device view (simpler)
-        
+
         renderList(deviceLibrary, false); // No validation checkboxes for device view
     }
     checkSyncReady();
@@ -99,18 +98,18 @@ btnAddFolder.addEventListener('click', async () => {
     if (folder) {
         showStatus(true, "Scanning...", "Reading library...");
         const files = await ipcRenderer.invoke('scan-library', folder);
-        
+
         // Merge into library (check for duplicates?)
         // For simplicity, just append new files
         const newFiles = files.map(f => ({ ...f, checked: true }));
         pcLibrary = [...pcLibrary, ...newFiles];
-        
+
         saveLibrary();
         updateBrowser();
         renderList(filterLibrary(pcLibrary));
         showStatus(false);
         checkSyncReady();
-        lcdTitle.innerText = `${ pcLibrary.length } Songs`;
+        lcdTitle.innerText = `${pcLibrary.length} Songs`;
     }
 });
 
@@ -128,7 +127,7 @@ function updateBrowser() {
     const artists = new Set();
     pcLibrary.forEach(f => artists.add(f.artist || "Unknown"));
     const sortedArtists = Array.from(artists).sort();
-    
+
     // Render Artists
     renderColumn(listArtists, ["All Artists", ...sortedArtists], selectedArtist, (val) => {
         selectedArtist = val === "All Artists" ? null : val;
@@ -136,7 +135,7 @@ function updateBrowser() {
         updateAlbumColumn();
         renderList(filterLibrary(pcLibrary));
     });
-    
+
     updateAlbumColumn();
 }
 
@@ -149,7 +148,7 @@ function updateAlbumColumn() {
         }
     });
     const sortedAlbums = Array.from(albums).sort();
-    
+
     renderColumn(listAlbums, ["All Albums", ...sortedAlbums], selectedAlbum, (val) => {
         selectedAlbum = val === "All Albums" ? null : val;
         renderList(filterLibrary(pcLibrary));
@@ -169,7 +168,7 @@ function renderColumn(element, items, selectedValue, onClick) {
             onClick(item);
             // Re-render columns to update selected state
             // Optimization: Just update status classes? For now full re-render is fine.
-            if(element.id === 'list-artists') updateBrowser(); // Full update
+            if (element.id === 'list-artists') updateBrowser(); // Full update
             else updateAlbumColumn(); // Just albums
         });
         element.appendChild(li);
@@ -195,15 +194,15 @@ async function performDbGen() {
     statusTitle.innerText = "Rebuilding Database...";
     statusMessage.innerText = "Scanning device and generating .rdb file...";
     showStatus(true);
-    
+
     const result = await ipcRenderer.invoke('generate-db', selectedDevicePath, selectedDevicePath);
-    
+
     if (result.success) {
-        showStatus(true, "Success!", `Database updated.Found ${ result.count } tracks.`);
+        showStatus(true, "Success!", `Database updated.Found ${result.count} tracks.`);
         setTimeout(() => showStatus(false), 3000);
     } else {
-         showStatus(true, "Error", "DB Gen failed: " + result.error);
-         setTimeout(() => showStatus(false), 5000);
+        showStatus(true, "Error", "DB Gen failed: " + result.error);
+        setTimeout(() => showStatus(false), 5000);
     }
 }
 
@@ -211,34 +210,34 @@ async function performDbGen() {
 btnSync.addEventListener('click', async () => {
     // Sync ONLY CHECKED items from PC Library
     const itemsToSync = pcLibrary.filter(f => f.checked);
-    
+
     if (!selectedDevicePath || itemsToSync.length === 0) {
         alert("Please select a device and at least one song to sync.");
         return;
     }
-    
-    showStatus(true, "Syncing...", `Copying ${ itemsToSync.length } files...`);
-    
+
+    showStatus(true, "Syncing...", `Copying ${itemsToSync.length} files...`);
+
     // Create 'Music' folder
     const targetDir = path.join(selectedDevicePath, 'Music');
     if (!fs.existsSync(targetDir)) {
-        try { fs.mkdirSync(targetDir); } catch(e) {}
+        try { fs.mkdirSync(targetDir); } catch (e) { }
     }
-    
+
     let copiedCount = 0;
     for (const file of itemsToSync) {
         const destPath = path.join(targetDir, file.name);
         try {
-            statusMessage.innerText = `Copying ${ file.name }...`;
+            statusMessage.innerText = `Copying ${file.name}...`;
             if (!fs.existsSync(destPath)) { // Skip if exists? Or overwrite? Let's skip for speed if same size
-                 await fs.promises.copyFile(file.path, destPath);
+                await fs.promises.copyFile(file.path, destPath);
             }
             copiedCount++;
         } catch (e) {
-            console.error(`Copy failed: ${ file.name } `, e);
+            console.error(`Copy failed: ${file.name} `, e);
         }
     }
-    
+
     // Auto Rebuild DB after Sync
     await performDbGen();
 });
@@ -261,7 +260,7 @@ async function scanDevice() {
     deviceLibrary = files;
     renderList(deviceLibrary, false);
     showStatus(false);
-    lcdTitle.innerText = `${ deviceLibrary.length } Songs on Device`;
+    lcdTitle.innerText = `${deviceLibrary.length} Songs on Device`;
 }
 
 function checkSyncReady() {
@@ -275,7 +274,7 @@ function renderList(files, selectable = true) {
     fileList.innerHTML = '';
     files.forEach(file => {
         const tr = document.createElement('tr');
-        
+
         // Checkbox Cell
         const tdCheck = document.createElement('td');
         tdCheck.style.textAlign = 'center';
@@ -290,16 +289,16 @@ function renderList(files, selectable = true) {
             tdCheck.appendChild(cb);
         }
         tr.appendChild(tdCheck);
-        
+
         // Icon
         const tdIcon = document.createElement('td');
         tdIcon.style.textAlign = 'center';
         tdIcon.innerHTML = '🎵';
         tr.appendChild(tdIcon);
-        
+
         // Data
         tr.innerHTML += `
-    < td > ${ file.name }</td >
+    < td > ${file.name}</td >
             <td>${file.artist || 'Unknown'}</td>
             <td>${file.album || 'Unknown'}</td>
             <td>${(file.size / 1024 / 1024).toFixed(1)} MB</td>
@@ -314,11 +313,11 @@ function loadLibrary() {
         try {
             const data = fs.readFileSync(LIBRARY_FILE, 'utf-8');
             pcLibrary = JSON.parse(data);
-            pcLibrary.forEach(f => { if(f.checked === undefined) f.checked = true; }); // Ensure checked state
+            pcLibrary.forEach(f => { if (f.checked === undefined) f.checked = true; }); // Ensure checked state
             updateBrowser();
             renderList(pcLibrary);
-            lcdTitle.innerText = `${ pcLibrary.length } Songs`;
-        } catch(e) {
+            lcdTitle.innerText = `${pcLibrary.length} Songs`;
+        } catch (e) {
             console.error("Failed to load library", e);
         }
     }
@@ -327,7 +326,7 @@ function loadLibrary() {
 function saveLibrary() {
     try {
         fs.writeFileSync(LIBRARY_FILE, JSON.stringify(pcLibrary, null, 2));
-    } catch(e) {
+    } catch (e) {
         console.error("Failed to save library", e);
     }
 }
@@ -335,11 +334,11 @@ function saveLibrary() {
 
 function showStatus(show, title, msg) {
     if (show) {
-        if(title) statusTitle.innerText = title;
-        if(msg) statusMessage.innerText = msg;
+        if (title) statusTitle.innerText = title;
+        if (msg) statusMessage.innerText = msg;
         statusOverlay.classList.remove('hidden');
     } else {
         statusOverlay.classList.add('hidden');
     }
 }
-```
+
