@@ -383,15 +383,17 @@ btnAddFolder.addEventListener('click', async () => {
         showStatus(true, "Scanning...", "Reading library...");
         const files = await ipcRenderer.invoke('scan-library', folder);
 
+        // DEBUG: Immediate feedback
+        if (files.length > 0) {
+            const first = files[0];
+            alert(`RAW SCAN RESULT:\nFound ${files.length} files.\nFirst: ${first.name}\nArtist Read: ${first.artist}\nAlbum Read: ${first.album}\n\n(If this looks correct, proceed. If this says Toto, the file tags are wrong.)`);
+        }
+
         // Deduplicate: Only add files that are not already in pcLibrary
         const existingPaths = new Set(pcLibrary.map(f => f.path));
         const uniqueNewFiles = files.filter(f => !existingPaths.has(f.path));
 
         if (uniqueNewFiles.length > 0) {
-            // DEBUG: Show user what we found for the first file
-            const first = uniqueNewFiles[0];
-            alert(`Debug: Scanned ${uniqueNewFiles.length} new files.\nFirst file: ${first.name}\nArtist: ${first.artist}\nAlbum: ${first.album}\n\nIf this says 'Toto' but shouldn't, your ID3 tags might be wrong!`);
-
             const newFilesWithCheck = uniqueNewFiles.map(f => ({ ...f, checked: true }));
             pcLibrary = [...pcLibrary, ...newFilesWithCheck];
             saveLibrary();
@@ -399,6 +401,11 @@ btnAddFolder.addEventListener('click', async () => {
             checkSyncReady();
             lcdTitle.innerText = `${pcLibrary.length} Songs`;
             showStatus(true, "Done", `Added ${uniqueNewFiles.length} new tracks.`);
+            setTimeout(() => showStatus(false), 2000);
+        } else if (files.length > 0) {
+            // Duplicates found!
+            alert("⚠️ ATTENZIONE ⚠️\nNessuna NUOVA traccia aggiunta!\nI file che hai scansionato sono GIA' presenti in libreria (probabilmente con il nome sbagliato 'Toto').\n\nPremi il pulsante CESTINO (🗑️) in alto per cancellare la libreria vecchia e ri-scansionare da zero scemo di guerra.");
+            showStatus(true, "Info", "Files already in library.");
             setTimeout(() => showStatus(false), 2000);
         } else {
             showStatus(true, "Info", "No new tracks found.");
