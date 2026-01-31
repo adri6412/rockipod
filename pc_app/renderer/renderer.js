@@ -33,6 +33,7 @@ const btnRefresh = document.getElementById('btn-refresh');
 const fileList = document.getElementById('file-list'); // TBody for tracks
 const listWrapper = document.querySelector('.list-wrapper'); // Wrapper div
 const tableHead = document.querySelector('.file-table thead'); // Table Header
+const checkAll = document.getElementById('check-all');
 
 // Navigation Controls
 const btnBack = document.getElementById('btn-back');
@@ -502,7 +503,6 @@ function showStatus(show, title, msg) {
     }
 }
 // 6. Checkbox Logic
-const checkAll = document.getElementById('check-all');
 if (checkAll) {
     checkAll.addEventListener('change', (e) => {
         const checked = e.target.checked;
