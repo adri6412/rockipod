@@ -427,7 +427,8 @@ async function scanDevice() {
 
 function checkSyncReady() {
     const hasChecked = pcLibrary.some(f => f.checked);
-    btnSync.disabled = !(selectedDevicePath && hasChecked);
+    // Enable sync if ANY file is checked. We will prompt for device if missing.
+    btnSync.disabled = !hasChecked;
     btnRebuild.disabled = !selectedDevicePath;
 }
 
@@ -438,8 +439,6 @@ function loadLibrary() {
             const data = fs.readFileSync(LIBRARY_FILE, 'utf-8');
             pcLibrary = JSON.parse(data);
             pcLibrary.forEach(f => { if (f.checked === undefined) f.checked = true; });
-            renderCurrentLevel();
-            lcdTitle.innerText = `${pcLibrary.length} Songs`;
         } catch (e) {
             console.error("Failed to load library", e);
         }
@@ -462,4 +461,38 @@ function showStatus(show, title, msg) {
     } else {
         statusOverlay.classList.add('hidden');
     }
+}
+// 6. Checkbox Logic
+const checkAll = document.getElementById('check-all');
+if (checkAll) {
+    checkAll.addEventListener('change', (e) => {
+        const checked = e.target.checked;
+
+        // Target files based on current view
+        let visibleTracks = [];
+
+        if (currentLevel === 2) {
+            // Specific Album Tracks
+            visibleTracks = pcLibrary.filter(f => {
+                return (f.artist || "Unknown") === navigationPath.artist &&
+                    (f.album || "Unknown") === navigationPath.album;
+            });
+        } else if (currentLevel === 1 && navigationPath.mode === 'album') {
+            // Specific Album Tracks (from Album root)
+            visibleTracks = pcLibrary.filter(f => (f.album || "Unknown") === navigationPath.album);
+        } else if (currentLevel === 0 && navigationPath.mode === 'track') {
+            // All Tracks
+            visibleTracks = pcLibrary;
+        }
+
+        // Update model
+        visibleTracks.forEach(f => f.checked = checked);
+
+        // Update UI (re-render current list to show checks)
+        // We only re-render if we are actually viewing tracks (which we should be if we found visibleTracks)
+        if (visibleTracks.length > 0) {
+            renderCurrentLevel();
+        }
+        checkSyncReady();
+    });
 }
