@@ -642,3 +642,15 @@ function renderCurrentLevel() {
         });
     }
 
+    function updateCheckAllVisibility() {
+        if (!checkAll) return;
+        let shouldShow = false;
+        if (currentLevel === 2) shouldShow = true;
+        else if (currentLevel === 1 && navigationPath.mode === 'album') shouldShow = true;
+        else if (currentLevel === 0 && navigationPath.mode === 'track') shouldShow = true;
+
+        if (currentView === 'device') shouldShow = false;
+
+        checkAll.style.visibility = shouldShow ? 'visible' : 'hidden';
+    }
+
