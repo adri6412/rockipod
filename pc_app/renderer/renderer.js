@@ -450,31 +450,7 @@ function renderCurrentLevel() {
         }
     });
 
-    const searchInput = document.getElementById('search-input');
 
-    // Search
-    searchInput.addEventListener('input', (e) => {
-        const query = e.target.value.toLowerCase();
-
-        // If search is active, switch to specific "Search Results" view state?
-        // Or just filter currently valid items.
-        // Let's force a "All Tracks" view filtered by query for immediate gratification
-
-        if (query.length > 0) {
-            currentLevel = 0;
-            navigationPath.mode = 'track'; // Show tracks
-            // Hack: Store query in navigationPath to use in render?
-            // Or just let renderCurrentLevel pull it from the input?
-            // Let's let renderCurrentLevel handle it.
-            renderCurrentLevel();
-        } else {
-            // Clear search -> reset to root? or stay in track view?
-            // Let's stay in track view but show all.
-            renderCurrentLevel();
-            // optionally reset to root if desired:
-            // currentLevel = -1; renderCurrentLevel();
-        }
-    });
 
     btnRefresh.addEventListener('click', () => {
         renderCurrentLevel();
