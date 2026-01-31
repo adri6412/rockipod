@@ -4,10 +4,10 @@ def convert_logo():
     try:
         # Load the uploaded image
         input_path = "apple_logo.png"
-        output_path = "apps/bitmaps/native/rockboxlogo.240x320x16.bmp"
+        output_path = "apps/bitmaps/native/rockboxlogo.320x320x16.bmp"
         
         # Target dimensions
-        target_width = 240
+        target_width = 320
         target_height = 320
         
         # Open source image
