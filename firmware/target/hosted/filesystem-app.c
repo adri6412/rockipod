@@ -438,16 +438,26 @@ struct dirent * app_readdir(DIR *dirp)
 
     OS_DIRENT_T *osdirent = os_readdir(this->osdirp);
 
-#ifdef OS_DIRENT_CONVERT
-    if (strlcpy_from_os(this->direntp->d_name, osdirent->d_name,
-                        this->d_name_size) >= this->d_name_size)
-    {
-        this->direntp->d_name[0] = '\0';
-        errno = EOVERFLOW;
-        return NULL;
+    if (!osdirent) {
+        printf("DEBUG: os_readdir returned NULL. errno=%d\n", errno);
+        fflush(stdout);
     }
 
-    osdirent = (OS_DIRENT_T *)this->direntp;
+#ifdef OS_DIRENT_CONVERT
+    if (osdirent) {
+        size_t len = strlcpy_from_os(this->direntp->d_name, osdirent->d_name,
+                            this->d_name_size);
+        if (len >= this->d_name_size)
+        {
+            printf("DEBUG: strlcpy_from_os overflow: len=%zu, max=%zu\n", len, this->d_name_size);
+            fflush(stdout);
+            this->direntp->d_name[0] = '\0';
+            errno = EOVERFLOW;
+            return NULL;
+        }
+
+        osdirent = (OS_DIRENT_T *)this->direntp;
+    }
 #endif /* OS_DIRENT_CONVERT */
 
     return (struct dirent *)osdirent;
@@ -536,7 +546,14 @@ struct dirinfo dir_get_info(DIR *dirp, struct dirent *entry)
 
     struct stat s;
     if (os_lstat(path, &s) < 0)
+    {
+        printf("DEBUG: os_lstat failed for %s: errno=%d\n", path, errno);
+        fflush(stdout);
         FILE_ERROR_RETURN(ERRNO, ret);
+    }
+
+    /* printf("DEBUG: stat %s: mode=%x\n", path, s.st_mode); */
+    /* fflush(stdout); */
 
     int err = 0;
     if (S_ISLNK(s.st_mode))
@@ -546,10 +563,23 @@ struct dirinfo dir_get_info(DIR *dirp, struct dirent *entry)
     }
 
     if (err < 0)
+    {
+        printf("DEBUG: os_stat failed for %s: errno=%d\n", path, errno);
+        fflush(stdout);
         FILE_ERROR_RETURN(ERRNO, ret);
+    }
 
     if (S_ISDIR(s.st_mode))
+    {
+        /* printf("DEBUG: ISDIR: %s\n", path); */
+        /* fflush(stdout); */
         ret.attribute |= ATTR_DIRECTORY;
+    }
+    else
+    {
+        /* printf("DEBUG: NOTDIR: %s\n", path); */
+        /* fflush(stdout); */
+    }
 
     ret.size = s.st_size;
 

@@ -261,6 +261,7 @@ void _logf(const char *fmt, ...)
 }
 #endif
 
+#ifndef __PCTOOL__
 void logf_panic_dump(int *y)
 {
     int i;
@@ -314,6 +315,7 @@ void logf_panic_dump(int *y)
     lcd_puts(1, (*y)++, "end of logf data");
     lcd_update();
 }
+#endif
 #endif
 
 #ifdef ROCKBOX_HAS_LOGDISKF

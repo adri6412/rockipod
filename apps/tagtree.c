@@ -1622,7 +1622,14 @@ static int retrieve_entries(struct tree_context *c, int offset, bool init)
         level--;
     }
     else
+    {
+        if (!csi)
+        {
+            logf("csi is NULL");
+            return -1;
+        }
         tag = csi->tagorder[level];
+    }
 
     if (tag == menu_reload)
         return RELOAD_TAGTREE;
@@ -1633,8 +1640,16 @@ static int retrieve_entries(struct tree_context *c, int offset, bool init)
         tag = tag_filename;
     }
 
+    /* tc_debug_log("tagtree: calling tagcache_search"); */
     if (!tagcache_search(&tcs, tag))
+    {
+        /* tc_debug_log("tagtree: tagcache_search failed"); */
         return -1;
+    }
+    
+    tc_debug_log("tagtree: tagcache_search returned true");
+    
+    /* ... rest of function ... */
 
     /* Prevent duplicate entries in the search list. */
     tagcache_search_set_uniqbuf(&tcs, uniqbuf, UNIQBUF_SIZE);
@@ -2054,6 +2069,12 @@ int tagtree_load(struct tree_context* c)
         table = TABLE_ROOT;
         c->currtable = table;
         c->currextra = rootmenu;
+        if (rootmenu < 0)
+        {
+             if (!initialize_tagtree())
+                 return -1;
+             c->currextra = rootmenu;
+        }
     }
 
     switch (table)
@@ -2134,6 +2155,9 @@ int tagtree_enter(struct tree_context* c, bool is_visible)
     bool adjust_selection = true;
 
     dptr = tagtree_get_entry(c, c->selected_item);
+
+    if (!dptr)
+        return 0;
 
     c->dirfull = false;
     seek = dptr->extraseek;
@@ -2585,11 +2609,15 @@ static bool insert_all_playlist(struct tree_context *c,
 static bool goto_allsubentries(int newtable)
 {
     int i = 0;
+    if (!tc)
+        return false;
+
     while (i < 2 && (newtable == TABLE_NAVIBROWSE || newtable == TABLE_ALLSUBENTRIES
         || newtable == TABLE_ALLSUBENTRIES_SORTED_BY_ALBUMS))
     {
         tagtree_enter(tc, false);
-        tagtree_load(tc);
+        if (tagtree_load(tc) < 0)
+             return false;
         newtable = tagtree_get_entry(tc, tc->selected_item)->newtable;
         i++;
     }
@@ -2601,7 +2629,8 @@ static void reset_tc_to_prev(int dirlevel, int selected_item)
     while (tc->dirlevel > dirlevel)
         tagtree_exit(tc, false);
     tc->selected_item = selected_item;
-    tagtree_load(tc);
+    if (tagtree_load(tc) < 0)
+        return;
 }
 
 static bool tagtree_insert_selection(int position, bool queue,
@@ -2710,6 +2739,8 @@ bool tagtree_subentries_do_action(bool (*action_cb)(const char *file_name))
 bool tagtree_get_subentry_filename(char *buf, size_t bufsize)
 {
     int ret = true;
+    if (!tc)
+        return false;
     int dirlevel = tc->dirlevel;
     int selected_item = tc->selected_item;
     int newtable = tagtree_get_entry(tc, tc->selected_item)->newtable;

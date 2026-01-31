@@ -20,6 +20,8 @@
  *
  ****************************************************************************/
 #define RB_FILESYSTEM_OS
+#define DBTOOL
+#include <sys/types.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
@@ -38,6 +40,10 @@
 
 #ifndef os_fstatat
 #define USE_OSDIRNAME /* we need to remember the open directory path */
+#endif
+
+#ifndef SIM_TMPBUF_MAX_PATH
+#define SIM_TMPBUF_MAX_PATH (MAX_PATH+1)
 #endif
 
 extern const char *sim_root_dir;
@@ -802,11 +808,21 @@ struct dirinfo dir_get_info(DIR *dirp, struct sim_dirent *entry)
         if (errno == EOVERFLOW)
             DEBUGF("stat overflow for \"%s\"\n", entry->d_name);
     #endif
+        printf("os_stat failed for %s (errno=%d)\n", entry->d_name, errno);
         FILE_ERROR(ERRNO, RC);
     }
 
+    printf("DEBUG: stat %s: mode=%x\n", entry->d_name, s.st_mode);
+
     if (S_ISDIR(s.st_mode))
+    {
+        printf("DEBUG: ISDIR %s\n", entry->d_name);
         info.attribute |= ATTR_DIRECTORY;
+    }
+    else
+    {
+        printf("DEBUG: NOTDIR %s\n", entry->d_name);
+    }
 
     info.size = s.st_size;
 

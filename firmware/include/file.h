@@ -44,7 +44,7 @@ enum relate_result
 #include "filesystem-ctru.h"
 #elif defined(APPLICATION) || defined(CHECKWPS)
 #include "filesystem-app.h"
-#elif defined(SIMULATOR) || defined(DBTOOL)
+#elif (defined(SIMULATOR) || defined(DBTOOL)) && !defined(APPLICATION)
 #include "../../uisimulator/common/filesystem-sim.h"
 #else
 #include "filesystem-native.h"

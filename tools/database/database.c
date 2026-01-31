@@ -11,6 +11,9 @@
 #include "tagcache.h"
 #include "dir.h"
 
+#define STRINGIFY(x) #x
+#define TOSTRING(x) STRINGIFY(x)
+
 /* This is meant to be run on the root of the dap. it'll put the db files into
  * a .rockbox subdir */
 
@@ -19,7 +22,7 @@ int main(int argc, char **argv)
     (void)argc;
     (void)argv;
 
-    fprintf(stderr, "Rockbox database tool for '%s'\n\n", TARGET_NAME);
+    fprintf(stderr, "Rockbox database tool for '%s'\n\n", TOSTRING(TARGET_NAME));
 
     DIR* rbdir = opendir(ROCKBOX_DIR);
     if (!rbdir) {
