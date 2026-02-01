@@ -5,15 +5,19 @@ on:
     paths:
       - 'rockbox-src/**'
       - '.github/workflows/rockbox.yml'
+    tags:
+      - 'v*'
   workflow_dispatch:
 
 jobs:
   build-firmware:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: Install Dependencies
       run: |
@@ -79,8 +83,18 @@ jobs:
         # 5. Set default theme config
         cp apps/themes/iPodLike.cfg release/.rockbox/config.cfg || true
 
+        # Create Zip for Release
+        cd release
+        zip -r ../rockbox-fiiom3k.zip . rockbox.m3k
+
     - name: Upload Artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: rockbox-fiiom3k
         path: rockbox-src/release/
+
+    - name: Release Firmware
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: rockbox-src/rockbox-fiiom3k.zip

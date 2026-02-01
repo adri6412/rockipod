@@ -5,6 +5,8 @@ on:
     paths:
       - 'rockbox-src/pc_app/**'
       - '.github/workflows/pc_client.yml'
+    tags:
+      - 'v*'
   workflow_dispatch:
 
 jobs:
@@ -14,6 +16,8 @@ jobs:
         os: [windows-latest, ubuntu-latest, macos-latest]
     
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
     
     defaults:
       run:
@@ -21,10 +25,10 @@ jobs:
 
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: Setup Node.js
-      uses: actions/setup-node@v3
+      uses: actions/setup-node@v4
       with:
         node-version: '18'
         cache: 'npm'
@@ -39,7 +43,13 @@ jobs:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Upload Artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: pc-client-${{ matrix.os }}
         path: rockbox-src/pc_app/dist/*.*
+
+    - name: Release Client
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: rockbox-src/pc_app/dist/*.*
