@@ -3,7 +3,12 @@ name: Build Rockbox for FiiO M3K
 on:
   push:
     paths:
-      - 'rockbox-src/**'
+      - 'apps/**'
+      - 'bootloader/**'
+      - 'firmware/**'
+      - 'tools/**'
+      - 'wps/**'
+      - 'backdrops/**'
       - '.github/workflows/rockbox.yml'
     tags:
       - 'v*'
@@ -25,21 +30,19 @@ jobs:
         sudo apt-get install -y build-essential git zip libsdl1.2-dev flex bison texinfo gcc-mipsel-linux-gnu
 
     - name: Configure Rockbox
-      working-directory: rockbox-src
       run: |
         mkdir -p build
         cd build
         ../tools/configure --target=fiiom3k --type=N --ram=0
 
     - name: Compile Rockbox
-      working-directory: rockbox-src/build
+      working-directory: build
       run: |
         make -j$(nproc)
         # Ensure rockbox.m3k is created
         ls -l rockbox.m3k
 
     - name: Assemble Release
-      working-directory: rockbox-src
       run: |
         mkdir -p release/.rockbox
         
@@ -61,7 +64,6 @@ jobs:
         cp build/apps/lang/*.lng release/.rockbox/langs/
         
         # 3. Merge iPodLike Theme (Base)
-        # The user has this in a separate folder 'iPodLike_Fixed'
         if [ -d "iPodLike_Fixed/.rockbox" ]; then
           cp -r iPodLike_Fixed/.rockbox/* release/.rockbox/
         else
@@ -91,10 +93,10 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: rockbox-fiiom3k
-        path: rockbox-src/release/
+        path: release/
 
     - name: Release Firmware
       if: startsWith(github.ref, 'refs/tags/')
       uses: softprops/action-gh-release@v1
       with:
-        files: rockbox-src/rockbox-fiiom3k.zip
+        files: rockbox-fiiom3k.zip
