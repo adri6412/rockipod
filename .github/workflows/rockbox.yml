@@ -1,0 +1,86 @@
+name: Build Rockbox for FiiO M3K
+
+on:
+  push:
+    paths:
+      - 'rockbox-src/**'
+      - '.github/workflows/rockbox.yml'
+  workflow_dispatch:
+
+jobs:
+  build-firmware:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Install Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential git zip libsdl1.2-dev flex bison texinfo gcc-mipsel-linux-gnu
+
+    - name: Configure Rockbox
+      working-directory: rockbox-src
+      run: |
+        mkdir -p build
+        cd build
+        ../tools/configure --target=fiiom3k --type=N --ram=0
+
+    - name: Compile Rockbox
+      working-directory: rockbox-src/build
+      run: |
+        make -j$(nproc)
+        # Ensure rockbox.m3k is created
+        ls -l rockbox.m3k
+
+    - name: Assemble Release
+      working-directory: rockbox-src
+      run: |
+        mkdir -p release/.rockbox
+        
+        # 1. Copy Firmware
+        cp build/rockbox.m3k release/
+        cp build/rockbox-info.txt release/.rockbox/
+        
+        # 2. Copy Codecs, Plugins, etc. (from build output)
+        mkdir -p release/.rockbox/codecs
+        find build -name "*.codec" -exec cp {} release/.rockbox/codecs/ \;
+        
+        mkdir -p release/.rockbox/rocks/apps
+        cp -r build/apps/plugins/*.rock release/.rockbox/rocks/apps/ || true
+        
+        mkdir -p release/.rockbox/fonts
+        cp build/fonts/* release/.rockbox/fonts/
+        
+        mkdir -p release/.rockbox/langs
+        cp build/apps/lang/*.lng release/.rockbox/langs/
+        
+        # 3. Merge iPodLike Theme (Base)
+        # The user has this in a separate folder 'iPodLike_Fixed'
+        if [ -d "iPodLike_Fixed/.rockbox" ]; then
+          cp -r iPodLike_Fixed/.rockbox/* release/.rockbox/
+        else
+          echo "Warning: iPodLike_Fixed directory not found"
+        fi
+        
+        # 4. Copy WPS/Themes (Source overlays)
+        mkdir -p release/.rockbox/backdrops
+        cp backdrops/*.bmp release/.rockbox/backdrops/ || true
+        
+        mkdir -p release/.rockbox/wps/iPodLike
+        cp wps/*.wps release/.rockbox/wps/ || true
+        cp wps/*.sbs release/.rockbox/wps/ || true
+        cp wps/iPodLike/*.bmp release/.rockbox/wps/iPodLike/ || true
+        
+        mkdir -p release/.rockbox/themes
+        cp -r apps/themes/* release/.rockbox/themes/ || true
+        
+        # 5. Set default theme config
+        cp apps/themes/iPodLike.cfg release/.rockbox/config.cfg || true
+
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: rockbox-fiiom3k
+        path: rockbox-src/release/
