@@ -7,6 +7,10 @@
     "start": "electron .",
     "dist": "electron-builder"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/adri6412/rockipod.git"
+  },
   "build": {
     "appId": "com.rockipod.musicmanager",
     "productName": "Rockbox Music Manager",
