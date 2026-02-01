@@ -29,7 +29,7 @@ jobs:
         sudo apt-get update
         # Install deps required by rockboxdev.sh
         sudo apt-get install -y build-essential git zip libsdl1.2-dev flex bison texinfo \
-          curl automake libtool autoconf libmpc-dev libgmp-dev libmpfr-dev texinfo \
+          curl automake libtool libtool-bin autoconf libmpc-dev libgmp-dev libmpfr-dev \
           gawk
         # Note: gcc-mipsel-linux-gnu is NOT needed as we build our own toolchain
 
