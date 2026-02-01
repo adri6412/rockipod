@@ -24,26 +24,33 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    - name: Install Dependencies
+    - name: Install Dependencies for Toolchain Build
       run: |
         sudo apt-get update
-        sudo apt-get install -y build-essential git zip libsdl1.2-dev flex bison texinfo gcc-mipsel-linux-gnu bzip2
+        # Install deps required by rockboxdev.sh
+        sudo apt-get install -y build-essential git zip libsdl1.2-dev flex bison texinfo \
+          curl automake libtool autoconf libmpc-dev libgmp-dev libmpfr-dev texinfo \
+          gawk
+        # Note: gcc-mipsel-linux-gnu is NOT needed as we build our own toolchain
 
-    - name: Helper - Symlink Toolchain
+    - name: Cache Rockbox Toolchain
+      id: cache-toolchain
+      uses: actions/cache@v4
+      with:
+        path: /opt/mips
+        # Key based on rockboxdev.sh content ensures rebuild if script changes
+        key: rockbox-toolchain-mips-${{ hashFiles('tools/rockboxdev.sh') }}
+
+    - name: Build Rockbox Toolchain
+      if: steps.cache-toolchain.outputs.cache-hit != 'true'
       run: |
-        # Rockbox expects 'mipsel-elf-' prefix for bare metal MIPS
-        # We symlink the Linux 'mipsel-linux-gnu-' toolchain to it.
-        # This works because we just need to compile instructions for MIPS32.
-        
-        sudo ln -s /usr/bin/mipsel-linux-gnu-gcc /usr/local/bin/mipsel-elf-gcc
-        sudo ln -s /usr/bin/mipsel-linux-gnu-ld /usr/local/bin/mipsel-elf-ld
-        sudo ln -s /usr/bin/mipsel-linux-gnu-ar /usr/local/bin/mipsel-elf-ar
-        sudo ln -s /usr/bin/mipsel-linux-gnu-as /usr/local/bin/mipsel-elf-as
-        sudo ln -s /usr/bin/mipsel-linux-gnu-objcopy /usr/local/bin/mipsel-elf-objcopy
-        sudo ln -s /usr/bin/mipsel-linux-gnu-objdump /usr/local/bin/mipsel-elf-objdump
-        sudo ln -s /usr/bin/mipsel-linux-gnu-ranlib /usr/local/bin/mipsel-elf-ranlib
-        sudo ln -s /usr/bin/mipsel-linux-gnu-cpp /usr/local/bin/mipsel-elf-cpp
-        sudo ln -s /usr/bin/mipsel-linux-gnu-gcc /usr/local/bin/mipsel-elf-cc
+        sudo mkdir -p /opt/mips
+        sudo chown $USER /opt/mips
+        # 'i' is the target for MIPS (Bare Metal) in rockboxdev.sh
+        ./tools/rockboxdev.sh --target=i --prefix=/opt/mips --dlwhere=/tmp/rbdev-dl --builddir=/tmp/rbdev-build
+
+    - name: Add Toolchain to PATH
+      run: echo "/opt/mips/bin" >> $GITHUB_PATH
 
     - name: Configure Rockbox
       run: |
