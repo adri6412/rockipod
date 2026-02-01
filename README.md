@@ -18,7 +18,11 @@ To compile this project for the FiiO M3K, a helper script is provided to automat
 
 ### Prerequisites
 1.  **WSL Enabled**: You must have WSL installed (e.g., Ubuntu).
-2.  **Dev Tools**: Ensure your WSL instance has the necessary build tools for Rockbox (gcc, make, zip, etc.).
+2.  **Rockbox Toolchain**: **CRITICAL**: Do NOT rely on `apt-get install gcc-mipsel-linux-gnu`. You **must** build the official toolchain using the helper script inside `tools/`.
+    *   Enter WSL: `wsl`
+    *   Navigate to the tools directory: `cd tools`
+    *   Run the build script: `sudo ./rockboxdev.sh --target=i`
+    *   Follow the prompts. This ensures you have the correct `mipsel-elf-gcc` compiler.
 
 ### How to Build
 1.  Open a terminal (Command Prompt or PowerShell) in the root of this repository.
