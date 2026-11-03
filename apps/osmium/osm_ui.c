@@ -390,7 +390,11 @@ static void draw_dialog(void)
 
 static void draw_progress(void)
 {
-    if (!progress.on || TIME_BEFORE(current_tick, progress.delay_until))
+    /* last_draw is set only once splash_progress has passed the delay and
+     * filled in the text/values: without it the panel would flash up empty
+     * after a quick load that finished before the delay elapsed. */
+    if (!progress.on || !progress.last_draw ||
+        TIME_BEFORE(current_tick, progress.delay_until))
         return;
     int w = SCR_W - 40, h = 64, x = 20, y = (SCR_H - h) / 2;
     gfx_fill(0, 0, SCR_W, SCR_H, BLACK_A(0.6));
@@ -800,6 +804,7 @@ static void progress_done(void)
 {
     progress.on = false;
     progress.delay = 0;
+    progress.last_draw = 0;
 }
 
 bool osm_user_abort(void)
