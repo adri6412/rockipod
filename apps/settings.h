@@ -358,7 +358,7 @@ struct user_settings
     int  osm_language;          /* 0=English 1=Italiano */
     int  osm_np_view;           /* Now Playing: 0=cover 1=VU meters */
     int  osm_vu_skin;           /* VU meter look */
-    int  osm_album_view;        /* albums as 0=grid 1=list */
+    int  osm_album_view;        /* albums as 0=grid 1=list 2=coverflow */
     bool osm_autoexpand;        /* open Now Playing when a track starts */
     bool osm_wheel_volume;      /* scroll wheel on Now Playing changes volume */
 };

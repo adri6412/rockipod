@@ -198,6 +198,7 @@ DAC_POWER_LOW|Battery saving|Risparmio batteria
 ALBUM_VIEW|Albums as|Album come
 AV_GRID|Covers|Copertine
 AV_LIST|List|Elenco
+AV_COVERFLOW|Cover flow|Cover flow
 OUTPUT|Output|Uscita
 UPTIME|Playing time on battery|Ascolto con questa carica
 RESTART_Q|Restart the player?|Riavviare il lettore?

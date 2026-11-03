@@ -43,6 +43,11 @@ static struct page {
     int  scroll;
     int32_t cover_idx;
     long total_ms;
+    /* cover flow */
+    bool coverflow;
+    int  cf_from;               /* animated centre, 8.8 fixed point */
+    int  cf_target;             /* album the slide is heading to */
+    long cf_start;              /* tick the current slide began */
 } pages[LEVELS];
 static int level = -1;          /* the page on top */
 static int loaded_level = -1;   /* whose list is in lib_items */
@@ -55,6 +60,12 @@ static long jump_until;
 
 #define LIST_TOP   (STATUSBAR_H + CRUMBS_H)
 #define LIST_H     (CONTENT_BOTTOM - LIST_TOP)
+
+/* cover flow: a ring of covers around the selected one */
+#define CF_VIS   3                  /* covers drawn on each side of the centre */
+#define CF_BIG   116                /* the centred cover, in px */
+#define CF_STEP  72                 /* gap between adjacent cover centres */
+#define CF_DUR   (HZ * 15 / 100)    /* the slide between two covers */
 
 static bool is_album_view(int v)
 {
@@ -146,25 +157,31 @@ static enum osm_icon kind_icon(int kind)
     return ICON_MUSIC;
 }
 
-static void draw_thumb(int32_t idx, int x, int y, int size, int radius)
+static void draw_thumb_op(int32_t idx, int x, int y, int size, int radius, int opacity)
 {
     int w, h;
     const uint16_t *px = lib_thumb(idx, &w, &h);
+    float f = opacity / 256.0f;
     if (px)
     {
         /* letterboxed if it is not square */
         int dw = size, dh = size;
         if (w > h) dh = size * h / w;
         else if (h > w) dw = size * w / h;
-        gfx_rrect(x, y, size, size, radius, C_BLACK);
-        gfx_bitmap(px, w, h, x + (size - dw) / 2, y + (size - dh) / 2, dw, dh, radius, 256);
+        gfx_rrect(x + (size - dw) / 2, y + (size - dh) / 2, dw, dh, radius, BLACK_A(f));
+        gfx_bitmap(px, w, h, x + (size - dw) / 2, y + (size - dh) / 2, dw, dh, radius, opacity);
     }
     else
     {
-        gfx_rrect(x, y, size, size, radius, C_LIGHT);
+        gfx_rrect(x, y, size, size, radius, A(C_LIGHT, f));
         int is = size >= 80 ? 44 : size >= 30 ? 16 : 14;
-        gfx_icon(ICON_DISC, is, x + (size - is) / 2, y + (size - is) / 2, SILVER_A(0.35));
+        gfx_icon(ICON_DISC, is, x + (size - is) / 2, y + (size - is) / 2, SILVER_A(0.35f * f));
     }
+}
+
+static void draw_thumb(int32_t idx, int x, int y, int size, int radius)
+{
+    draw_thumb_op(idx, x, y, size, radius, 256);
 }
 
 static void paint_row(int i, int x, int y, int w, int h, bool sel, void *d)
@@ -246,6 +263,130 @@ static void paint_cell(int i, int x, int y, int w, int h, bool sel, void *d)
                  SILVER_A(0.55), ALIGN_LEFT);
 }
 
+/* ── cover flow ────────────────────────────────────────────────────── */
+
+/* the album at list index i (i < extra is the synthetic "All tracks") */
+static int32_t cf_item(struct page *pg, int i, const char **name, const char **sub)
+{
+    if (i < pg->extra)
+    {
+        *name = osm_str(S_ALL_TRACKS);
+        *sub = NULL;
+        return -1;
+    }
+    const struct lib_item *it = &lib_items[i - pg->extra];
+    *name = display_name(it);
+    *sub = (it->sub && it->sub[0]) ? it->sub : osm_str(S_UNKNOWN_ARTIST);
+    return it->idx;
+}
+
+/* the centre of the ring, 8.8 fixed point; eases from cf_from to cf_target */
+static int cf_pos(struct page *pg)
+{
+    long d = CF_DUR;
+    if (d < 1)
+        d = 1;
+    long e = current_tick - pg->cf_start;
+    int to = pg->cf_target << 8;
+    if (e >= d || e < 0)
+        return to;
+    int t = (int)(e * 256 / d);         /* 0 .. 256 */
+    int inv = 256 - t;
+    int ease = 256 - inv * inv / 256;   /* ease-out quad */
+    return pg->cf_from + (int)((long)(to - pg->cf_from) * ease / 256);
+}
+
+/* start sliding toward the current selection from where we are now */
+static void cf_retarget(struct page *pg)
+{
+    pg->cf_from = cf_pos(pg);
+    pg->cf_target = pg->list.sel;
+    pg->cf_start = current_tick;
+}
+
+static void cf_move(struct page *pg, int d)
+{
+    int n = pg->list.sel + d;
+    if (n < 0)
+        n = 0;
+    if (n >= pg->list.count)
+        n = pg->list.count - 1;
+    if (n != pg->list.sel)
+    {
+        pg->list.sel = n;
+        cf_retarget(pg);
+    }
+}
+
+static void cf_draw_one(struct page *pg, int i, int pos, int cy)
+{
+    if (i < 0 || i >= pg->list.count)
+        return;
+    int delta = (i << 8) - pos;             /* 8.8 fixed, 0 at the centre */
+    int ad = delta < 0 ? -delta : delta;
+    if (ad > (CF_VIS << 8) + 128)
+        return;
+    float slot = delta / 256.0f;
+    float a = ad / 256.0f;
+    if (a > CF_VIS)
+        a = CF_VIS;
+    float scale = 1.0f - 0.26f * a;
+    if (scale < 0.20f)
+        scale = 0.20f;
+    int size = (int)(CF_BIG * scale);
+    int cx = SCR_W / 2 + (int)(slot * CF_STEP);
+    int opacity = 256 - (int)(75.0f * (a > 2 ? 2 : a));
+    if (opacity < 80)
+        opacity = 80;
+    int radius = size >= 90 ? 12 : size >= 50 ? 9 : 6;
+    int x = cx - size / 2, y = cy - size / 2;
+    if (i < pg->extra)
+    {
+        float f = opacity / 256.0f;
+        gfx_rrect(x, y, size, size, radius, A(C_GRAY, f));
+        int is = size >= 80 ? 30 : size >= 30 ? 16 : 12;
+        gfx_icon(ICON_LIST_MUSIC, is, cx - is / 2, cy - is / 2, WA(f));
+    }
+    else
+    {
+        draw_thumb_op(lib_items[i - pg->extra].idx, x, y, size, radius, opacity);
+    }
+}
+
+static void draw_coverflow(struct page *pg)
+{
+    int n = pg->list.count;
+    /* the list was reloaded under us (library rescan): snap to the selection */
+    if (pg->cf_target >= n || pg->cf_target < 0)
+    {
+        pg->cf_target = pg->list.sel;
+        pg->cf_from = pg->cf_target << 8;
+        pg->cf_start = 0;
+    }
+    int pos = cf_pos(pg);
+    int H = CONTENT_BOTTOM - LIST_TOP;
+    int cy = LIST_TOP + H * 42 / 100;
+    int centre = (pos + 128) >> 8;
+    /* farthest first so the centred cover lands on top */
+    for (int k = CF_VIS; k >= 1; k--)
+    {
+        cf_draw_one(pg, centre - k, pos, cy);
+        cf_draw_one(pg, centre + k, pos, cy);
+    }
+    cf_draw_one(pg, centre, pos, cy);
+
+    int sel = pg->list.sel;
+    const char *nm, *sb;
+    cf_item(pg, sel, &nm, &sb);
+    int ly = LIST_TOP + H - 50;
+    gfx_text_fit(OSM_FONT_B15, 10, ly, SCR_W - 20, nm, C_WHITE, ALIGN_CENTER);
+    if (sel >= pg->extra && sb)
+        gfx_text_fit(OSM_FONT_R12, 10, ly + 22, SCR_W - 20, sb, SILVER_A(0.7f), ALIGN_CENTER);
+    char cnt[24];
+    snprintf(cnt, sizeof cnt, "%d / %d", sel + 1, n);
+    gfx_text_fit(OSM_FONT_R10, 10, LIST_TOP + H - 8, SCR_W - 20, cnt, SILVER_A(0.4f), ALIGN_CENTER);
+}
+
 static void draw_empty(const char *msg, const char *detail)
 {
     int y = LIST_TOP + 50;
@@ -294,6 +435,12 @@ static void browse_draw(void)
                    preparing && !(st && st->commit_delayed) ?
                    library_progress(progress, sizeof progress) : NULL);
     }
+    else if (pg->coverflow)
+    {
+        gfx_clip(0, LIST_TOP, SCR_W, LIST_H);
+        draw_coverflow(pg);
+        gfx_noclip();
+    }
     else
     {
         gfx_clip(0, LIST_TOP, SCR_W, LIST_H);
@@ -317,7 +464,9 @@ static bool browse_animating(void)
         jump_until = 0;
         osm_dirty();
     }
-    return jump_until != 0;
+    bool cf = level >= 0 && pages[level].coverflow &&
+              TIME_BEFORE(current_tick, pages[level].cf_start + CF_DUR);
+    return jump_until != 0 || cf;
 }
 
 /* ── actions ───────────────────────────────────────────────────────── */
@@ -558,10 +707,21 @@ static bool browse_key(int key, int ev)
 {
     struct page *pg = &pages[level];
     ensure_loaded(level);
+    if (pg->coverflow && pg->list.count > 0 && (ev == EV_PRESS || ev == EV_REPEAT) &&
+        (key == K_LEFT || key == K_RIGHT))
+    {
+        cf_move(pg, key == K_RIGHT ? 1 : -1);
+        osm_dirty();
+        return true;
+    }
+    int cf_old = pg->list.sel;
     if (list_key(&pg->list, key, ev))
     {
+        /* the wheel or up/down moved the ring: slide to it */
+        if (pg->coverflow && pg->list.sel != cf_old)
+            cf_retarget(pg);
         /* fast through a long list: the letter in the middle */
-        if (pg->list.speed > 6 && pg->list.count > 40 && !pg->grid)
+        else if (pg->list.speed > 6 && pg->list.count > 40 && !pg->grid && !pg->coverflow)
             jump_until = current_tick + HZ / 2;
         osm_dirty();
         return true;
@@ -569,7 +729,8 @@ static bool browse_key(int key, int ev)
     if (pg->list.count == 0)
         return false;
     int i = pg->list.sel;
-    if ((key == K_SELECT && ev == EV_SHORT) || (key == K_RIGHT && ev == EV_SHORT && !pg->grid))
+    if ((key == K_SELECT && ev == EV_SHORT) ||
+        (key == K_RIGHT && ev == EV_SHORT && !pg->grid && !pg->coverflow))
     {
         open_item(pg, i);
         osm_dirty();
@@ -591,7 +752,7 @@ static bool browse_key(int key, int ev)
     }
     if (key == K_MENU && ev == EV_SHORT)
         return false;                   /* Now Playing */
-    if (key == K_LEFT && ev == EV_SHORT && !pg->grid)
+    if (key == K_LEFT && ev == EV_SHORT && !pg->grid && !pg->coverflow)
     {
         osm_pop();
         return true;
@@ -627,11 +788,18 @@ void browse_open(const struct lib_query *q, const char *title)
     strmemccpy(pg->title, title, sizeof pg->title);
     pg->extra = q->view == LIB_ARTIST_ALBUMS ? 1 : 0;
     pg->grid = is_album_view(q->view) && global_settings.osm_album_view == 0;
+    pg->coverflow = is_album_view(q->view) && global_settings.osm_album_view == 2;
     if (pg->grid)
     {
         list_init(&pg->list, 0, 2, LIST_TOP + 2, SCR_W - 6, LIST_H - 2, 0);
         pg->list.cols = 2;
         pg->list.row_h = (pg->list.w / 2) - 10 + 4 + 34;
+    }
+    else if (pg->coverflow)
+    {
+        /* a 1-D ring: the list only keeps the count and the selection */
+        list_init(&pg->list, 0, 0, LIST_TOP, SCR_W, LIST_H, 1);
+        pg->list.cols = 1;
     }
     else
         list_init(&pg->list, 0, 0, LIST_TOP + 4, SCR_W - 2, LIST_H - 4,

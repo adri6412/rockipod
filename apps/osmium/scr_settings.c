@@ -239,7 +239,7 @@ static const enum osm_str_id n_power[] = { S_DAC_POWER_HIGH, S_DAC_POWER_LOW };
 static const enum osm_str_id n_crossfeed[] = { S_OFF, S_CF_MEIER };
 static const enum osm_str_id n_afr[] = { S_OFF, S_AFR_WEAK, S_AFR_MODERATE, S_AFR_STRONG };
 static const enum osm_str_id n_view[] = { S_NP_VIEW_COVER, S_NP_VIEW_VU };
-static const enum osm_str_id n_albumview[] = { S_AV_GRID, S_AV_LIST };
+static const enum osm_str_id n_albumview[] = { S_AV_GRID, S_AV_LIST, S_AV_COVERFLOW };
 static const enum osm_str_id n_tf[] = { S_TF_24, S_TF_12 };
 #if defined(HAVE_USB_POWER) && !defined(USB_NONE) && !defined(SIMULATOR) && defined(USB_ENABLE_AUDIO)
 #define HAVE_USB_DAC_SETTING
@@ -377,7 +377,7 @@ static struct item np_items[] = {
     CHOICEF(S_VU_LOOK, osm_vu_skin, vu_name, NULL, OSM_VU_SKIN_COUNT, ap_save),
     BOOL(S_AUTOEXPAND, osm_autoexpand, ap_save),
     BOOL(S_WHEEL_VOLUME, osm_wheel_volume, ap_save),
-    CHOICE(S_ALBUM_VIEW, osm_album_view, n_albumview, NULL, 2, ap_save),
+    CHOICE(S_ALBUM_VIEW, osm_album_view, n_albumview, NULL, 3, ap_save),
 };
 
 static struct item display_items[] = {

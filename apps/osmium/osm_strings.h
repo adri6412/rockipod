@@ -202,6 +202,7 @@ enum osm_str_id {
     S_ALBUM_VIEW,
     S_AV_GRID,
     S_AV_LIST,
+    S_AV_COVERFLOW,
     S_OUTPUT,
     S_UPTIME,
     S_RESTART_Q,
