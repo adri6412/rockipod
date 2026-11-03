@@ -1,0 +1,8 @@
+{
+  "version": "v1.8.1",
+  "published": "2026-11-03T23:36:55Z",
+  "url": "https://github.com/adri6412/osmium-pod/releases/tag/v1.8.1",
+  "package": "firmware/osmium-pod-fiiom3k.zip",
+  "bootloader": "firmware/bootloader.m3k",
+  "installer": "firmware/installer.m3k"
+}
