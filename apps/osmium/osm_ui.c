@@ -97,6 +97,7 @@ static struct {
     char text[96];
     long delay_until;
     long delay;
+    long last_draw;
 } progress;
 
 /* ── screens ───────────────────────────────────────────────────────── */
@@ -765,16 +766,27 @@ void splash_progress_set_delay(long delay_ticks)
 
 void splash_progress(int current, int total, const char *fmt, ...)
 {
+    if (!progress.on)
+    {
+        progress.on = true;
+        progress.last_draw = 0;
+        if (!progress.delay)
+            progress.delay_until = current_tick;
+    }
+    /* Callers invoke this once per byte while parsing (e.g. the playlist
+     * control file): nothing is drawn before the delay, and redrawing the
+     * whole screen for every byte is far too slow. Throttle to ~20 fps. */
+    if (TIME_BEFORE(current_tick, progress.delay_until))
+        return;
+    if (progress.last_draw &&
+        TIME_BEFORE(current_tick, progress.last_draw + HZ / 20))
+        return;
+    progress.last_draw = current_tick;
+
     va_list ap;
     va_start(ap, fmt);
     vsnprintf(progress.text, sizeof progress.text, P2STR((const unsigned char *)fmt), ap);
     va_end(ap);
-    if (!progress.on)
-    {
-        progress.on = true;
-        if (!progress.delay)
-            progress.delay_until = current_tick;
-    }
     progress.cur = current;
     progress.total = total;
     if (on_ui_thread() && ui_thread_id)
